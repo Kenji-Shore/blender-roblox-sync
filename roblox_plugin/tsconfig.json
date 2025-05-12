@@ -1,0 +1,28 @@
+{
+	"compilerOptions": {
+		"allowSyntheticDefaultImports": true,
+		"downlevelIteration": true,
+		"jsx": "react",
+		"jsxFactory": "Vide.jsx",
+		"jsxFragmentFactory": "Vide.Fragment",
+		"module": "commonjs",
+		"moduleResolution": "Node",
+		"noLib": true,
+		"resolveJsonModule": true,
+		"experimentalDecorators": true,
+		"forceConsistentCasingInFileNames": true,
+		"moduleDetection": "force",
+		"strict": true,
+		"target": "ESNext",
+		"declaration": true,
+		"preserveSymlinks": true,
+		"strictPropertyInitialization": false,
+		
+		"incremental": true,
+		"types": ["types/plugin"],
+		"typeRoots": ["node_modules/@rbxts"],
+		"rootDir": "src",
+		"outDir": "out",
+		"plugins": []
+	}
+}

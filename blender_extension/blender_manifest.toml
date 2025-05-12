@@ -1,0 +1,22 @@
+schema_version = "1.0.0"
+
+id = "blender_roblox_sync"
+version = "1.0.0"
+name = "Blender_roblox_sync"
+tagline = "This is another extension"
+maintainer = "Kenji Shore"
+# Supported types: "add-on", "theme"
+type = "add-on"
+
+tags = ["Animation", "Sequencer"]
+blender_version_min = "4.2.0"
+license = [
+  "SPDX:GPL-2.0-or-later",
+]
+
+wheels = [
+  "./wheels/pillow-11.2.1-cp311-cp311-macosx_11_0_arm64.whl",
+  "./wheels/pillow-11.2.1-cp311-cp311-win_amd64.whl",
+  "./wheels/numpy-2.2.5-cp311-cp311-macosx_11_0_arm64.whl",
+  "./wheels/numpy-2.2.5-cp311-cp311-win_amd64.whl",
+]

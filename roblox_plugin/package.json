@@ -1,0 +1,48 @@
+{
+  "name": "blender_roblox_sync",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "watch": "nodemon --watch src --exec pnpm changed",
+    "changed": "rbxtsc --writeOnlyChanged --optimizedLoops && rojo build . --output ../blender_extension/blender_roblox_sync.rbxm && ln -f src/message_formats.json ../blender_extension/"
+  },
+  "nodemonConfig": {
+    "ext": "ts,tsx,json",
+    "delay": 25
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "types": "out/index.d.ts",
+  "files": [
+    "out",
+    "!**/*.tsbuildinfo"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "prettier": {
+    "printWidth": 120,
+    "tabWidth": 4,
+    "trailingComma": "all",
+    "useTabs": true
+  },
+  "dependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.23.0",
+    "@rbxts/compiler-types": "3.0.0-types.0",
+    "@rbxts/services": "^1.5.5",
+    "@rbxts/types": "^1.0.843",
+    "@typescript-eslint/eslint-plugin": "^8.29.0",
+    "@typescript-eslint/parser": "^8.29.0",
+    "eslint": "^9.23.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-prettier": "^5.2.6",
+    "eslint-plugin-roblox-ts": "^0.0.36",
+    "nodemon": "^3.1.9",
+    "prettier": "^3.5.3",
+    "roblox-ts": "^3.0.0",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.29.0"
+  }
+}

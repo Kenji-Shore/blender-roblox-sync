@@ -1,0 +1,50 @@
+{
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"files.eol": "\n",
+	"[typescript]": {
+		"editor.defaultFormatter": "dbaeumer.vscode-eslint",
+		"editor.formatOnSave": true
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "dbaeumer.vscode-eslint",
+		"editor.formatOnSave": true
+	},
+	"eslint.run": "onType",
+	"eslint.format.enable": true,
+	"python.analysis.diagnosticSeverityOverrides": {
+		"reportInvalidTypeForm": "none"
+	},
+	"editor.insertSpaces": false,
+	"python.defaultInterpreterPath": "python3",
+	"blender.additionalArguments": [
+        "--open-last"
+    ],
+    "files.exclude": {
+        "**/.git": false,
+        "**/.svn": false,
+        "**/.hg": false,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": false,
+        "**/.eslintrc": false,
+        "**/.gitignore": false,
+        "**/.prettierrc": false,
+        "**/.vscode": false,
+        "**/package-lock.json": false,
+        "**/pnpm-lock.yaml": true,
+        "aftman.toml": false,
+        "commands": true,
+        "**/*.tsbuildinfo": true,
+        "**/tsconfig.json": true,
+        "**/eslint.config.mjs": true,
+        "**/default.project.json": true,
+        "**/aftman.toml": true,
+        "**/package.json": true,
+        "**/pnpm-workspace.yaml": true,
+        "**/node_modules": true,
+        "**/include": true,
+        "**/wheels": true,
+        "**/__pycache__": true
+    },
+    "explorerExclude.backup": {},
+    "blender.addon.reloadOnSave": true,
+}
