@@ -14,7 +14,7 @@
 import bpy, mathutils
 import sys, subprocess, struct, time
 from collections import deque
-from . import utils, server, manage_roblox_plugin, material, vertex_color
+from . import utils, server, manage_roblox_plugin, material, vertex_color, fly_operator
 import numpy as np
 
 syncing = False
@@ -416,7 +416,8 @@ modules = (
     server,
     manage_roblox_plugin,
     material,
-    vertex_color
+    vertex_color,
+    fly_operator
 )
 
 def register_module(module):
@@ -435,11 +436,15 @@ def unregister_module(module):
 def register():
     register_module(globals())
     for module in modules:
-        register_module(module.__dict__)
-        module.register()
+        module = module.__dict__
+        register_module(module)
+        if "register" in module:
+            module["register"]()
 
 def unregister():
     unregister_module(globals())
     for module in modules:
-        module.unregister()
-        unregister_module(module.__dict__)
+        module = module.__dict__
+        if "unregister" in module:
+            module["unregister"]()
+        unregister_module(module)

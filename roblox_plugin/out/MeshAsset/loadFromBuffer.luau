@@ -2,7 +2,7 @@
 -- Compiled with roblox-ts v3.0.0
 local INV_NORMAL = 1 / 127
 local INV_COLOR = 1 / 255
-local function loadFromBuffer(self, meshBuffer)
+local function loadFromBuffer(chunks, meshBuffer)
 	local offset = 0
 	local flags = buffer.readu8(meshBuffer, offset)
 	offset += 1
@@ -11,8 +11,6 @@ local function loadFromBuffer(self, meshBuffer)
 	flags = bit32.arshift(flags, 1)
 	local _value_1 = (bit32.band(flags, 1))
 	local hasUVs = not not (_value_1 ~= 0 and _value_1 == _value_1 and _value_1)
-	self.hasUVs = hasUVs
-	self.hasColors = hasColors
 	local minX = math.huge
 	local maxX = -math.huge
 	local minY = math.huge
@@ -20,53 +18,30 @@ local function loadFromBuffer(self, meshBuffer)
 	local minZ = math.huge
 	local maxZ = -math.huge
 	local vertices = {}
-	self.vertices = vertices
 	local edgesCount = 0
 	local edgeMap = {}
 	local edgeStartVIs = {}
 	local edgeEndVIs = {}
 	local edgeInvVecs = {}
-	self.edgeStartVIs = edgeStartVIs
-	self.edgeEndVIs = edgeEndVIs
-	self.edgeInvVecs = edgeInvVecs
 	local fc1VI = {}
 	local fc2VI = {}
 	local fc3VI = {}
-	self.fc1VI = fc1VI
-	self.fc2VI = fc2VI
-	self.fc3VI = fc3VI
 	local fEI1 = {}
 	local fEI2 = {}
 	local fEI3 = {}
-	self.fEI1 = fEI1
-	self.fEI2 = fEI2
-	self.fEI3 = fEI3
 	local fc1N = {}
 	local fc2N = {}
 	local fc3N = {}
-	self.fc1N = fc1N
-	self.fc2N = fc2N
-	self.fc3N = fc3N
 	local fc1UV = {}
 	local fc2UV = {}
 	local fc3UV = {}
-	self.fc1UV = fc1UV
-	self.fc2UV = fc2UV
-	self.fc3UV = fc3UV
 	local fc1Col = {}
 	local fc1CA = {}
 	local fc2Col = {}
 	local fc2CA = {}
 	local fc3Col = {}
 	local fc3CA = {}
-	self.fc1Col = fc1Col
-	self.fc1CA = fc1CA
-	self.fc2Col = fc2Col
-	self.fc2CA = fc2CA
-	self.fc3Col = fc3Col
-	self.fc3CA = fc3CA
 	local vertsCount = buffer.readu16(meshBuffer, offset)
-	self.vertsCount = vertsCount
 	offset += 2
 	for i = 0, vertsCount - 1 do
 		local x = buffer.readf32(meshBuffer, offset + 4)
@@ -81,13 +56,7 @@ local function loadFromBuffer(self, meshBuffer)
 		maxZ = math.max(maxZ, z)
 		vertices[i + 1] = Vector3.new(x, y, z)
 	end
-	self.minBounds = Vector3.new(minX, minY, minZ)
-	self.maxBounds = Vector3.new(maxX, maxY, maxZ)
-	local _maxBounds = self.maxBounds
-	local _minBounds = self.minBounds
-	self.meshSize = _maxBounds - _minBounds
 	local trisCount = buffer.readu16(meshBuffer, offset)
-	self.trisCount = trisCount
 	offset += 2
 	for _ = 0, trisCount - 1 do
 		local vi1 = buffer.readu16(meshBuffer, offset)
@@ -146,7 +115,6 @@ local function loadFromBuffer(self, meshBuffer)
 		local _ei3 = ei3
 		table.insert(fEI3, _ei3)
 	end
-	self.edgesCount = edgesCount
 	for _ = 0, trisCount - 1 do
 		local _arg0 = Vector3.new(buffer.readi8(meshBuffer, offset + 1), buffer.readi8(meshBuffer, offset + 2), buffer.readi8(meshBuffer, offset)) * INV_NORMAL
 		table.insert(fc1N, _arg0)
@@ -184,6 +152,36 @@ local function loadFromBuffer(self, meshBuffer)
 			offset += 12
 		end
 	end
+	return {
+		chunks = chunks,
+		hasUVs = hasUVs,
+		hasColors = hasColors,
+		vertices = vertices,
+		edgeStartVIs = edgeStartVIs,
+		edgeEndVIs = edgeEndVIs,
+		edgeInvVecs = edgeInvVecs,
+		fc1VI = fc1VI,
+		fc2VI = fc2VI,
+		fc3VI = fc3VI,
+		fEI1 = fEI1,
+		fEI2 = fEI2,
+		fEI3 = fEI3,
+		fc1N = fc1N,
+		fc2N = fc2N,
+		fc3N = fc3N,
+		fc1UV = fc1UV,
+		fc2UV = fc2UV,
+		fc3UV = fc3UV,
+		fc1Col = fc1Col,
+		fc1CA = fc1CA,
+		fc2Col = fc2Col,
+		fc2CA = fc2CA,
+		fc3Col = fc3Col,
+		fc3CA = fc3CA,
+		vertsCount = vertsCount,
+		trisCount = trisCount,
+		edgesCount = edgesCount,
+	}, Vector3.new(minX, minY, minZ), Vector3.new(maxX, maxY, maxZ)
 end
 return {
 	loadFromBuffer = loadFromBuffer,

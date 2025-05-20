@@ -1,9 +1,9 @@
 //!native
-import { Mesh } from "./index";
+import { SourceMesh } from "./index";
 
 const INV_NORMAL = 1 / 127;
 const INV_COLOR = 1 / 255;
-export function loadFromBuffer(this: Mesh, meshBuffer: buffer) {
+export function loadFromBuffer(chunks: Vector3, meshBuffer: buffer): LuaTuple<[SourceMesh, Vector3, Vector3]> {
 	let offset = 0;
 	let flags = buffer.readu8(meshBuffer, offset);
 	offset += 1;
@@ -11,8 +11,6 @@ export function loadFromBuffer(this: Mesh, meshBuffer: buffer) {
 	const hasColors = !!(flags & 1);
 	flags >>= 1;
 	const hasUVs = !!(flags & 1);
-	this.hasUVs = hasUVs;
-	this.hasColors = hasColors;
 
 	let minX = math.huge;
 	let maxX = -math.huge;
@@ -21,44 +19,28 @@ export function loadFromBuffer(this: Mesh, meshBuffer: buffer) {
 	let minZ = math.huge;
 	let maxZ = -math.huge;
 	const vertices: Vector3[] = [];
-	this.vertices = vertices;
 
 	let edgesCount = 0;
 	const edgeMap = new Map<Vector3, number>();
 	const edgeStartVIs: number[] = [];
 	const edgeEndVIs: number[] = [];
 	const edgeInvVecs: Vector3[] = [];
-	this.edgeStartVIs = edgeStartVIs;
-	this.edgeEndVIs = edgeEndVIs;
-	this.edgeInvVecs = edgeInvVecs;
 
 	const fc1VI: number[] = [];
 	const fc2VI: number[] = [];
 	const fc3VI: number[] = [];
-	this.fc1VI = fc1VI;
-	this.fc2VI = fc2VI;
-	this.fc3VI = fc3VI;
 
 	const fEI1: number[] = [];
 	const fEI2: number[] = [];
 	const fEI3: number[] = [];
-	this.fEI1 = fEI1;
-	this.fEI2 = fEI2;
-	this.fEI3 = fEI3;
 
 	const fc1N: Vector3[] = [];
 	const fc2N: Vector3[] = [];
 	const fc3N: Vector3[] = [];
-	this.fc1N = fc1N;
-	this.fc2N = fc2N;
-	this.fc3N = fc3N;
 
 	const fc1UV: Vector2[] = [];
 	const fc2UV: Vector2[] = [];
 	const fc3UV: Vector2[] = [];
-	this.fc1UV = fc1UV;
-	this.fc2UV = fc2UV;
-	this.fc3UV = fc3UV;
 
 	const fc1Col: Color3[] = [];
 	const fc1CA: number[] = [];
@@ -66,15 +48,8 @@ export function loadFromBuffer(this: Mesh, meshBuffer: buffer) {
 	const fc2CA: number[] = [];
 	const fc3Col: Color3[] = [];
 	const fc3CA: number[] = [];
-	this.fc1Col = fc1Col;
-	this.fc1CA = fc1CA;
-	this.fc2Col = fc2Col;
-	this.fc2CA = fc2CA;
-	this.fc3Col = fc3Col;
-	this.fc3CA = fc3CA;
 
 	const vertsCount = buffer.readu16(meshBuffer, offset);
-	this.vertsCount = vertsCount;
 	offset += 2;
 	for (const i of $range(0, vertsCount - 1)) {
 		const x = buffer.readf32(meshBuffer, offset + 4);
@@ -90,12 +65,8 @@ export function loadFromBuffer(this: Mesh, meshBuffer: buffer) {
 		maxZ = math.max(maxZ, z);
 		vertices[i] = new Vector3(x, y, z);
 	}
-	this.minBounds = new Vector3(minX, minY, minZ);
-	this.maxBounds = new Vector3(maxX, maxY, maxZ);
-	this.meshSize = this.maxBounds.sub(this.minBounds);
 
 	const trisCount = buffer.readu16(meshBuffer, offset);
-	this.trisCount = trisCount;
 	offset += 2;
 	for (const _ of $range(0, trisCount - 1)) {
 		const vi1 = buffer.readu16(meshBuffer, offset);
@@ -141,7 +112,6 @@ export function loadFromBuffer(this: Mesh, meshBuffer: buffer) {
 		fEI2.push(ei2);
 		fEI3.push(ei3);
 	}
-	this.edgesCount = edgesCount;
 	for (const _ of $range(0, trisCount - 1)) {
 		fc1N.push(
 			new Vector3(
@@ -207,4 +177,46 @@ export function loadFromBuffer(this: Mesh, meshBuffer: buffer) {
 			offset += 12;
 		}
 	}
+
+	return $tuple(
+		{
+			chunks: chunks,
+			hasUVs: hasUVs,
+			hasColors: hasColors,
+			vertices: vertices,
+
+			edgeStartVIs: edgeStartVIs,
+			edgeEndVIs: edgeEndVIs,
+			edgeInvVecs: edgeInvVecs,
+
+			fc1VI: fc1VI,
+			fc2VI: fc2VI,
+			fc3VI: fc3VI,
+
+			fEI1: fEI1,
+			fEI2: fEI2,
+			fEI3: fEI3,
+
+			fc1N: fc1N,
+			fc2N: fc2N,
+			fc3N: fc3N,
+
+			fc1UV: fc1UV,
+			fc2UV: fc2UV,
+			fc3UV: fc3UV,
+
+			fc1Col: fc1Col,
+			fc1CA: fc1CA,
+			fc2Col: fc2Col,
+			fc2CA: fc2CA,
+			fc3Col: fc3Col,
+			fc3CA: fc3CA,
+
+			vertsCount: vertsCount,
+			trisCount: trisCount,
+			edgesCount: edgesCount,
+		},
+		new Vector3(minX, minY, minZ),
+		new Vector3(maxX, maxY, maxZ),
+	);
 }

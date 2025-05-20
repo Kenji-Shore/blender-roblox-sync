@@ -1,21 +1,20 @@
 //!native
-import { Mesh } from "./index";
+import { SplitMesh } from "./index";
 
-export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number) {
-	const splitPos = splitPoint * this.meshSize[axis] + this.minBounds[axis];
-	const vertices = this.vertices;
-	const edgeStartVIs = this.edgeStartVIs;
-	const edgeEndVIs = this.edgeEndVIs;
-	const edgeInvVecs = this.edgeInvVecs;
+export function splitMesh(mesh: SplitMesh, axis: "X" | "Y" | "Z", splitPos: number) {
+	const vertices = mesh.vertices;
+	const edgeStartVIs = mesh.edgeStartVIs;
+	const edgeEndVIs = mesh.edgeEndVIs;
+	const edgeInvVecs = mesh.edgeInvVecs;
 
-	const edgeSplitEIs = this.edgeSplitEIs;
-	const edgeSplitAlphas = this.edgeSplitAlphas;
-	const edgeSplitVIs = this.edgeSplitVIs;
+	const edgeSplitEIs = mesh.edgeSplitEIs;
+	const edgeSplitAlphas = mesh.edgeSplitAlphas;
+	const edgeSplitVIs = mesh.edgeSplitVIs;
 	table.clear(edgeSplitEIs);
 	table.clear(edgeSplitAlphas);
 	table.clear(edgeSplitVIs);
 
-	for (const i of $range(0, this.edgesCount - 1)) {
+	for (const i of $range(0, mesh.edgesCount - 1)) {
 		const endVI = edgeEndVIs[i];
 		const startVertex = vertices[edgeStartVIs[i]];
 		const endVertex = vertices[endVI];
@@ -23,16 +22,16 @@ export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number)
 		if (alpha > 0 && alpha < 1) {
 			const newVertex = startVertex.sub(endVertex).mul(alpha).add(endVertex);
 			vertices.push(newVertex);
-			const vi = this.vertsCount;
-			this.vertsCount += 1;
+			const vi = mesh.vertsCount;
+			mesh.vertsCount += 1;
 
 			edgeEndVIs[i] = vi;
 			edgeInvVecs[i] = Vector3.one.div(startVertex.sub(newVertex));
 			edgeStartVIs.push(endVI);
 			edgeEndVIs.push(vi);
 			edgeInvVecs.push(Vector3.one.div(endVertex.sub(newVertex)));
-			const ei = this.edgesCount;
-			this.edgesCount += 1;
+			const ei = mesh.edgesCount;
+			mesh.edgesCount += 1;
 
 			edgeSplitAlphas.set(i, alpha);
 			edgeSplitVIs.set(i, vi);
@@ -40,32 +39,32 @@ export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number)
 		}
 	}
 
-	const hasUVs = this.hasUVs;
-	const hasColors = this.hasColors;
+	const hasUVs = mesh.hasUVs;
+	const hasColors = mesh.hasColors;
 
-	const fc1VI = this.fc1VI;
-	const fc2VI = this.fc2VI;
-	const fc3VI = this.fc3VI;
+	const fc1VI = mesh.fc1VI;
+	const fc2VI = mesh.fc2VI;
+	const fc3VI = mesh.fc3VI;
 
-	const fEI1 = this.fEI1;
-	const fEI2 = this.fEI2;
-	const fEI3 = this.fEI3;
+	const fEI1 = mesh.fEI1;
+	const fEI2 = mesh.fEI2;
+	const fEI3 = mesh.fEI3;
 
-	const fc1N = this.fc1N;
-	const fc2N = this.fc2N;
-	const fc3N = this.fc3N;
+	const fc1N = mesh.fc1N;
+	const fc2N = mesh.fc2N;
+	const fc3N = mesh.fc3N;
 
-	const fc1UV = this.fc1UV;
-	const fc2UV = this.fc2UV;
-	const fc3UV = this.fc3UV;
+	const fc1UV = mesh.fc1UV;
+	const fc2UV = mesh.fc2UV;
+	const fc3UV = mesh.fc3UV;
 
-	const fc1Col = this.fc1Col;
-	const fc1CA = this.fc1CA;
-	const fc2Col = this.fc2Col;
-	const fc2CA = this.fc2CA;
-	const fc3Col = this.fc3Col;
-	const fc3CA = this.fc3CA;
-	for (const ti0 of $range(0, this.trisCount - 1)) {
+	const fc1Col = mesh.fc1Col;
+	const fc1CA = mesh.fc1CA;
+	const fc2Col = mesh.fc2Col;
+	const fc2CA = mesh.fc2CA;
+	const fc3Col = mesh.fc3Col;
+	const fc3CA = mesh.fc3CA;
+	for (const ti0 of $range(0, mesh.trisCount - 1)) {
 		const vi1 = fc1VI[ti0];
 		const vi2 = fc2VI[ti0];
 		const vi3 = fc3VI[ti0];
@@ -121,9 +120,9 @@ export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number)
 				//t0: e1, e2, e6 aka 1=fc1, 2=fc4, 3=fc5
 				//t1: e4, e6, e7 aka 1=fc4, 2=fc2, 3=fc5
 				//t2: e3, e7, e5 aka 1=fc2, 2=fc3, 3=fc5
-				const ti1 = this.trisCount;
+				const ti1 = mesh.trisCount;
 				const ti2 = ti1 + 1;
-				this.trisCount += 2;
+				mesh.trisCount += 2;
 
 				edgeStartVIs.push(vi4); //ei6
 				edgeEndVIs.push(vi5);
@@ -131,9 +130,9 @@ export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number)
 				edgeStartVIs.push(vi2); //ei7
 				edgeEndVIs.push(vi5);
 				edgeInvVecs.push(Vector3.one.div(vertices[vi2].sub(vertices[vi5])));
-				const ei6 = this.edgesCount;
+				const ei6 = mesh.edgesCount;
 				const ei7 = ei6 + 1;
-				this.edgesCount += 2;
+				mesh.edgesCount += 2;
 
 				const n4 = n1.sub(n2).mul(a1).add(n2);
 				const n5 = n1.sub(n3).mul(a2).add(n3);
@@ -223,9 +222,9 @@ export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number)
 				//t0: e4, e6, e3 aka 1=fc4, 2=fc2, 3=fc5
 				//t1: e6, e7, e5 aka 1=fc4, 2=fc5, 3=fc3
 				//t2: e7, e1, e2 aka 1=fc4, 2=fc3, 3=fc1
-				const ti1 = this.trisCount;
+				const ti1 = mesh.trisCount;
 				const ti2 = ti1 + 1;
-				this.trisCount += 2;
+				mesh.trisCount += 2;
 
 				edgeStartVIs.push(vi4); //ei6
 				edgeEndVIs.push(vi5);
@@ -233,9 +232,9 @@ export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number)
 				edgeStartVIs.push(vi4); //ei7
 				edgeEndVIs.push(vi3);
 				edgeInvVecs.push(Vector3.one.div(vertices[vi4].sub(vertices[vi3])));
-				const ei6 = this.edgesCount;
+				const ei6 = mesh.edgesCount;
 				const ei7 = ei6 + 1;
-				this.edgesCount += 2;
+				mesh.edgesCount += 2;
 
 				const n4 = n1.sub(n2).mul(a1).add(n2);
 				const n5 = n2.sub(n3).mul(a3).add(n3);
@@ -312,14 +311,14 @@ export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number)
 				//ei5: vi4 to vi3
 				//t0: e1, e2, e5 aka 1=fc1, 2=fc4, 3=fc3
 				//t1: e4, e5, e3 aka 1=fc4, 2=fc2, 3=fc3
-				const ti1 = this.trisCount;
-				this.trisCount += 1;
+				const ti1 = mesh.trisCount;
+				mesh.trisCount += 1;
 
 				edgeStartVIs.push(vi4); //ei5
 				edgeEndVIs.push(vi3);
 				edgeInvVecs.push(Vector3.one.div(vertices[vi4].sub(vertices[vi3])));
-				const ei5 = this.edgesCount;
-				this.edgesCount += 1;
+				const ei5 = mesh.edgesCount;
+				mesh.edgesCount += 1;
 
 				const n4 = n1.sub(n2).mul(a1).add(n2);
 				fc2VI[ti0] = vi4;
@@ -387,9 +386,9 @@ export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number)
 				//t0: e6, e4, e5 aka 1=fc4, 2=fc5, 3=fc3
 				//t1: e2, e6, e7 aka 1=fc4, 2=fc1, 3=fc5
 				//t2: e1, e7, e3 aka 1=fc1, 2=fc2, 3=fc5
-				const ti1 = this.trisCount;
+				const ti1 = mesh.trisCount;
 				const ti2 = ti1 + 1;
-				this.trisCount += 2;
+				mesh.trisCount += 2;
 
 				edgeStartVIs.push(vi4); //ei6
 				edgeEndVIs.push(vi5);
@@ -397,9 +396,9 @@ export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number)
 				edgeStartVIs.push(vi5); //ei7
 				edgeEndVIs.push(vi1);
 				edgeInvVecs.push(Vector3.one.div(vertices[vi5].sub(vertices[vi1])));
-				const ei6 = this.edgesCount;
+				const ei6 = mesh.edgesCount;
 				const ei7 = ei6 + 1;
-				this.edgesCount += 2;
+				mesh.edgesCount += 2;
 
 				const n4 = n1.sub(n3).mul(a2).add(n3);
 				const n5 = n2.sub(n3).mul(a3).add(n3);
@@ -476,14 +475,14 @@ export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number)
 				//ei5: vi4 to vi2
 				//t0: e1, e2, e5 aka 1=fc1, 2=fc2, 3=fc4
 				//t1: e5, e4, e3 aka 1=fc4, 2=fc2, 3=fc3
-				const ti1 = this.trisCount;
-				this.trisCount += 1;
+				const ti1 = mesh.trisCount;
+				mesh.trisCount += 1;
 
 				edgeStartVIs.push(vi4); //ei5
 				edgeEndVIs.push(vi2);
 				edgeInvVecs.push(Vector3.one.div(vertices[vi4].sub(vertices[vi2])));
-				const ei5 = this.edgesCount;
-				this.edgesCount += 1;
+				const ei5 = mesh.edgesCount;
+				mesh.edgesCount += 1;
 
 				const n4 = n1.sub(n3).mul(a2).add(n3);
 				fc3VI[ti0] = vi4;
@@ -537,14 +536,14 @@ export function splitMesh(this: Mesh, axis: "X" | "Y" | "Z", splitPoint: number)
 			//ei5: vi4 to vi1
 			//t0: e1, e5, e3 aka 1=fc1, 2=fc2, 3=fc4
 			//t1: e5, e2, e4 aka 1=fc1, 2=fc4, 3=fc3
-			const ti1 = this.trisCount;
-			this.trisCount += 1;
+			const ti1 = mesh.trisCount;
+			mesh.trisCount += 1;
 
 			edgeStartVIs.push(vi4); //ei5
 			edgeEndVIs.push(vi1);
 			edgeInvVecs.push(Vector3.one.div(vertices[vi4].sub(vertices[vi1])));
-			const ei5 = this.edgesCount;
-			this.edgesCount += 1;
+			const ei5 = mesh.edgesCount;
+			mesh.edgesCount += 1;
 
 			const n4 = n2.sub(n3).mul(a3).add(n3);
 			fc3VI[ti0] = vi4;

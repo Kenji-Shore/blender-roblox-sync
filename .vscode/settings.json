@@ -33,7 +33,7 @@
         "**/pnpm-lock.yaml": true,
         "aftman.toml": false,
         "commands": true,
-        "**/*.tsbuildinfo": true,
+        "**/*.tsbuildinfo": false,
         "**/tsconfig.json": true,
         "**/eslint.config.mjs": true,
         "**/default.project.json": true,

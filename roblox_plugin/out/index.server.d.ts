@@ -1,1 +1,6 @@
-export declare function makeHello(name: string): string;
+export interface Consumer {
+    instance?: Model | MeshPart;
+    meshParts: MeshPart[];
+    size: Vector3;
+    useImageTransparency: boolean;
+}
