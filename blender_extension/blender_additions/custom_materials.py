@@ -1,7 +1,6 @@
-import bpy, bl_ui, mathutils
-import copy
-from bpy_extras.node_utils import find_node_input
-from . import utils, vertex_color
+import bpy, bl_ui, mathutils, copy
+from . import multi_vertex_paint
+from .. import utils
 
 opaque_node_properties = {
     "ShaderNodeTexImage": {
@@ -41,7 +40,7 @@ opaque_node_properties = {
             "location": mathutils.Vector((130, -300)),
             "width": 140,
             "height": 100,
-            "layer_name": vertex_color.vertex_color_name
+            "layer_name": multi_vertex_paint.vertex_color_name
         },
         "outputs": {
             "Alpha": { "enabled": False }
@@ -289,10 +288,10 @@ def load_post(file):
 
 listeners = []
 classes = (EEVEE_MATERIAL_PT_surface,)
-def register():
+def register(package):
     bpy.app.handlers.load_post.append(load_post)
     listeners.append(utils.listen_operator("MATERIAL_OT_new", material_added))
 
-def unregister():
+def unregister(package):
     if load_post in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(load_post)

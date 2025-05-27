@@ -63,7 +63,7 @@ def draw_callback_3d(self, context):
     region_3d.update()
     context.area.tag_redraw()
 
-class FlyOperator(bpy.types.Operator):
+class VIEW3D_OT_custom_fly(bpy.types.Operator):
     bl_idname = "view3d.custom_fly"
     bl_label = "Custom Fly Operator"
     bl_options = {'REGISTER'}
@@ -134,12 +134,11 @@ class FlyOperator(bpy.types.Operator):
         row = col.row()
         row.prop(self, "my_float")
     
-classes = (FlyOperator,)
-listeners = []
+classes = (VIEW3D_OT_custom_fly,)
 
 keymap = None
 keymap_item = None
-def register():
+def register(package):
     stop_fly()
 
     global keymap
@@ -154,9 +153,9 @@ def register():
 
     if addon_keyconfig:
         keymap = addon_keyconfig.keymaps.new(name="3D View", space_type="VIEW_3D")
-        keymap_item = keymap.keymap_items.new(FlyOperator.bl_idname, type="SPACE", value="PRESS")
+        keymap_item = keymap.keymap_items.new("view3d.custom_fly", type="SPACE", value="PRESS")
 
-def unregister():
+def unregister(package):
     stop_fly()
 
     global keymap

@@ -12,6 +12,7 @@ do
 	local function create(meshBuffer)
 		local sourceMesh, minBounds, maxBounds = loadFromBuffer(Vector3.one, meshBuffer)
 		return {
+			name = "",
 			minBounds = minBounds,
 			maxBounds = maxBounds,
 			meshSize = maxBounds - minBounds,

@@ -24,17 +24,17 @@ const meshes = new Map<string, MeshAsset>();
 const images = new Map<string, ImageAsset>();
 const objects = new Map<string, object>();
 
-Server.Hook("sendObjects", (sendMeshes, sendImages, sendObjects) => {
-	for (const [meshHash, meshBuffer] of sendMeshes as Map<string, buffer>) {
-		meshes.set(meshHash, MeshAsset.create(meshBuffer));
-	}
-	for (const [imageHash, imageBuffer] of sendImages as Map<string, buffer>) {
-		images.set(imageHash, ImageAsset.create(imageBuffer));
-	}
-	for (const [objectHash, objectData] of sendObjects as Map<string, ObjectData>) {
-		objects.set(objectHash, Object.create(objectData));
-	}
-});
+// Server.Hook("sendObjects", (sendMeshes, sendImages, sendObjects) => {
+// 	for (const [meshHash, meshBuffer] of sendMeshes as Map<string, buffer>) {
+// 		meshes.set(meshHash, MeshAsset.create(meshBuffer));
+// 	}
+// 	for (const [imageHash, imageBuffer] of sendImages as Map<string, buffer>) {
+// 		images.set(imageHash, ImageAsset.create(imageBuffer));
+// 	}
+// 	for (const [objectHash, objectData] of sendObjects as Map<string, ObjectData>) {
+// 		objects.set(objectHash, Object.create(objectData));
+// 	}
+// });
 
 plugin.Unloading.Connect(() => {
 	Server.Unloading();

@@ -82,6 +82,7 @@ export namespace MeshAsset {
 	export function create(meshBuffer: buffer): MeshAsset {
 		const [sourceMesh, minBounds, maxBounds] = loadFromBuffer(Vector3.one, meshBuffer);
 		return {
+			name: "",
 			minBounds: minBounds,
 			maxBounds: maxBounds,
 			meshSize: maxBounds.sub(minBounds),

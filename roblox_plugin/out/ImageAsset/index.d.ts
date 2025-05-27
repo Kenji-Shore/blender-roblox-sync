@@ -7,6 +7,7 @@ export interface ImageAsset {
     consumers: ImageConsumer[];
 }
 export declare namespace ImageAsset {
+    function update(imageHash: string, imageBuffer: buffer): void;
     function create(imageBuffer: buffer): ImageAsset;
     function addConsumer(imageAsset: ImageAsset, consumer: Consumer): void;
 }

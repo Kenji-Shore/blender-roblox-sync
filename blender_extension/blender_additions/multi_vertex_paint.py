@@ -1,6 +1,5 @@
-import bpy, bmesh
-from . import utils
-import bl_ui
+import bpy, bmesh, bl_ui
+from .. import utils
 
 vertex_color_name = "BaseShading"
 vertex_paint_modes = ("VERTEX_PAINT", "SCULPT")
@@ -212,13 +211,13 @@ class VIEW3D_PT_sculpt_voxel_remesh(bl_ui.space_view3d_toolbar.VIEW3D_PT_sculpt_
 
 classes = (VIEW3D_PT_sculpt_dyntopo, VIEW3D_PT_sculpt_voxel_remesh,)
 listeners = []
-def register():
+def register(package):
     bpy.app.handlers.load_post.append(load_post)
     bpy.app.handlers.save_pre.append(save_pre)
     listeners.append(utils.listen_mode(vertex_paint_modes, enter=enter_vertex_paint, exit=exit_vertex_paint))
     listeners.append(utils.listen_depsgraph_update(add_vertex_colors))
 
-def unregister():
+def unregister(package):
     if load_post in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(load_post)
     if save_pre in bpy.app.handlers.save_pre:

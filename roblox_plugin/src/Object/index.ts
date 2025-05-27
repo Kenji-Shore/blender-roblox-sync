@@ -31,26 +31,26 @@ export namespace Object {
 		const consumers: Consumer[] = [];
 		for (const meshImage of meshImages) {
 			const [hasImage, useImageTransparency, meshHash, alpha, imageHash] = meshImage;
-			const meshAsset = meshes.get(meshHash)!;
+			// const meshAsset = meshes.get(meshHash)!;
 
-			const consumer: Consumer = {
-				meshParts: [],
-				size: size,
-				useImageTransparency: useImageTransparency,
-			};
-			MeshAsset.addConsumer(meshAsset, consumer);
-			if (hasImage) {
-				ImageAsset.addConsumer(images.get(imageHash!), consumer);
-			}
-			for (const meshPart of consumer.meshParts) {
-				meshPart.Material = Enum.Material.Fabric;
-				meshPart.CastShadow = false;
-				meshPart.CFrame = cframe;
-				if (!useImageTransparency) {
-					meshPart.Transparency = 1 - alpha / 255;
-				}
-			}
-			consumers.push(consumer);
+			// const consumer: Consumer = {
+			// 	meshParts: [],
+			// 	size: size,
+			// 	useImageTransparency: useImageTransparency,
+			// };
+			// MeshAsset.addConsumer(meshAsset, consumer);
+			// if (hasImage) {
+			// 	ImageAsset.addConsumer(images.get(imageHash!), consumer);
+			// }
+			// for (const meshPart of consumer.meshParts) {
+			// 	meshPart.Material = Enum.Material.Fabric;
+			// 	meshPart.CastShadow = false;
+			// 	meshPart.CFrame = cframe;
+			// 	if (!useImageTransparency) {
+			// 		meshPart.Transparency = 1 - alpha / 255;
+			// 	}
+			// }
+			// consumers.push(consumer);
 		}
 
 		let instance: Model | MeshPart;

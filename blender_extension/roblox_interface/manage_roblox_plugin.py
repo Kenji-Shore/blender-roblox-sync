@@ -6,7 +6,6 @@ import shutil
 
 plugin_name = "blender_roblox_sync.rbxm"
 
-"DFIntUserHttpRequestsPerMinuteLimitZ"
 def get_plugins_dir():
     plugins_dir = Path.home()
     match platform.system():
@@ -43,25 +42,33 @@ def plugins_dir_update(self, context):
     
     self.last_dir = self.plugins_dir
 
-class CustomAddonPreferences(bpy.types.AddonPreferences):
-    bl_idname = __package__
+CustomAddonPreferences = None
+def register(package):
+    global CustomAddonPreferences
+    class CustomAddonPreferences(bpy.types.AddonPreferences):
+        bl_idname = package
 
-    last_dir: bpy.props.StringProperty(default="")
-    plugins_dir: bpy.props.StringProperty(
-        name="Local Plugin Path",
-        description = "Roblox Studio Local Plugin Folder Path",
-        default="",
-        subtype='DIR_PATH',
-        update=plugins_dir_update
-    )
+        last_dir: bpy.props.StringProperty(default="")
+        plugins_dir: bpy.props.StringProperty(
+            name="Local Plugin Path",
+            description = "Roblox Studio Local Plugin Folder Path",
+            default="",
+            subtype='DIR_PATH',
+            update=plugins_dir_update
+        )
+    bpy.utils.register_class(CustomAddonPreferences)
 
-classes = (CustomAddonPreferences,)
-def register():
     preferences = bpy.context.preferences
-    addon_prefs = preferences.addons[__package__].preferences
+    addon_prefs = preferences.addons[package].preferences
     addon_prefs.plugins_dir = get_plugins_dir() #adds plugin
 
-def unregister():
+def unregister(package):
+    global CustomAddonPreferences
+    if CustomAddonPreferences:
+        bpy.utils.unregister_class(CustomAddonPreferences)
+    CustomAddonPreferences = None
+
     preferences = bpy.context.preferences
-    addon_prefs = preferences.addons[__package__].preferences
-    addon_prefs.plugins_dir = "" #removes plugin
+    addon_prefs = preferences.addons[package].preferences
+    if addon_prefs:
+        addon_prefs.plugins_dir = "" #removes plugin

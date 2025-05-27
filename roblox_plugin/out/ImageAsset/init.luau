@@ -5,7 +5,8 @@ local AssetService = TS.import(script, script.Parent, "include", "node_modules",
 local ImageAsset = {}
 do
 	local _container = ImageAsset
-	local function create(imageBuffer)
+	local imageAssets = {}
+	local function update(imageHash, imageBuffer)
 		local width = buffer.readu16(imageBuffer, 0)
 		local height = buffer.readu16(imageBuffer, 2)
 		local size = Vector2.new(width, height)
@@ -17,16 +18,22 @@ do
 		buffer.copy(pixelsBuffer, 0, imageBuffer, 4)
 		image:WritePixelsBuffer(Vector2.zero, size, pixelsBuffer)
 		local content = Content.fromObject(image)
-		-- if (this.isAlpha) {
-		-- 	const [result, assetId] = AssetService.CreateAssetAsync(this.content.Object!, Enum.AssetType.Image, {
-		-- 		Name: "test",
-		-- 	}) as LuaTuple<[Enum.CreateAssetResult, number]>;
-		-- 	if (result === Enum.CreateAssetResult.Success) {
-		-- 		this.assetId = `rbxassetid://${assetId}`;
-		-- 	}
-		-- }
+		--if (imageAssets)
+	end
+	_container.update = update
+	local function create(imageBuffer)
+		local width = buffer.readu16(imageBuffer, 0)
+		local height = buffer.readu16(imageBuffer, 2)
+		local size = Vector2.new(width, height)
+		local image = AssetService:CreateEditableImage({
+			Size = size,
+		})
+		local totalBytes = width * height * 4
+		local pixelsBuffer = buffer.create(totalBytes)
+		buffer.copy(pixelsBuffer, 0, imageBuffer, 4)
+		image:WritePixelsBuffer(Vector2.zero, size, pixelsBuffer)
 		return {
-			content = content,
+			content = Content.fromObject(image),
 			consumers = {},
 		}
 	end

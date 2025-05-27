@@ -45,6 +45,7 @@ export interface Split {
     contents: Content[];
 }
 export interface MeshAsset {
+    name: string;
     minBounds: Vector3;
     maxBounds: Vector3;
     meshSize: Vector3;
