@@ -1,90 +1,78 @@
 import time, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from . import process_formats, receive_messages, send_messages
 
-def hook(message_name, callback):
-    assert message_name in process_formats.receive_message_ids
-    message_id = process_formats.receive_message_ids[message_name]
-    process_formats.message_listeners[message_id].append(callback)
+def register(utils):
+    process_formats = utils.import_module("process_formats")
+    receive_messages = utils.import_module("receive_messages")
+    send_messages = utils.import_module("send_messages")
 
-def unhook(message_name, callback):
-    assert message_name in process_formats.receive_message_ids
-    message_id = process_formats.receive_message_ids[message_name]
-    process_formats.message_listeners[message_id].remove(callback)
+    TIMEOUT_DURATION = 1
 
-timeout_duration = 1
+    global hook
+    global unhook
+    def hook(message_name, callback):
+        assert message_name in process_formats.receive_message_ids
+        message_id = process_formats.receive_message_ids[message_name]
+        process_formats.listen_message(message_id, callback)
+    def unhook(message_name, callback):
+        assert message_name in process_formats.receive_message_ids
+        message_id = process_formats.receive_message_ids[message_name]
+        process_formats.unlisten_message(message_id, callback)
 
-is_connected = False
-is_connected_callbacks = []
-def set_is_connected(value):
     global is_connected
-    if is_connected != value:
-        is_connected = value
-        for callback in is_connected_callbacks:
-            callback(value)
+    is_connected = False
+    is_connected_callbacks = []
+    def set_is_connected(value):
+        global is_connected
+        if is_connected != value:
+            is_connected = value
+            for callback in is_connected_callbacks:
+                callback(value)
+    global assign_is_connected_callback
+    def assign_is_connected_callback(callback):
+        is_connected_callbacks.append(callback)
 
-server = None
-receiveThread = None
-sendThread = None
-last_received = time.time()
-class ServerHandler(BaseHTTPRequestHandler):
-    server_version = ""
-    sys_version = ""
+    last_received = time.time()
+    class ServerHandler(BaseHTTPRequestHandler):
+        server_version = ""
+        sys_version = ""
 
-    def log_message(self, format, *args):
-        if self.server.logging:
-            BaseHTTPRequestHandler.log_message(self, format, *args)
-    
-    def do_POST(self):
-        global last_received
-        last_received = time.time()
-        set_is_connected(True)
+        def log_message(self, format, *args):
+            if self.server.logging:
+                BaseHTTPRequestHandler.log_message(self, format, *args)
+        
+        def do_POST(self):
+            nonlocal last_received
+            last_received = time.time()
+            set_is_connected(True)
 
-        content_length = int(self.headers['Content-Length'])
-        if content_length > 0:
-            receiveThread.receive_message(self.rfile.read(content_length))
+            content_length = int(self.headers['Content-Length'])
+            if content_length > 0:
+                receive_messages.receiveThread.receive_message(self.rfile.read(content_length))
 
-        self.send_response(200)
-        self.end_headers()
+            self.send_response(200)
+            self.end_headers()
 
-        queue_len = len(sendThread.buffers_queued)
-        if queue_len > 0:
-            self.wfile.write(sendThread.buffers_queued.pop(0))
+            queue_len = len(send_messages.sendThread.buffers_queued)
+            if queue_len > 0:
+                self.wfile.write(send_messages.sendThread.buffers_queued.pop(0))
+    class Server(ThreadingHTTPServer):
+        request_queue_size = 128
+        logging = False
 
-class Server(ThreadingHTTPServer):
-    request_queue_size = 128
-    logging = False
+        def service_actions(self):
+            if time.time() - last_received >= TIMEOUT_DURATION:
+                set_is_connected(False)    
+    class ServerThread(threading.Thread):
+        def run(self):
+            self.server = Server(('localhost', 50520), ServerHandler)
+            self.server.serve_forever()
+        
+        def stop(self):
+            if hasattr(self, "server"):
+                self.server.shutdown()
+                self.server.server_close()
 
-    def service_actions(self):
-        if time.time() - last_received >= timeout_duration:
-            set_is_connected(False)
-            
-class ServerThread(threading.Thread):
-    def run(self):
-        self.server = Server(('localhost', 50520), ServerHandler)
-        self.server.serve_forever()
-    
-    def stop(self):
-        if hasattr(self, "server"):
-            self.server.shutdown()
-            self.server.server_close()
-
-def register(package):
-    is_connected_callbacks.clear()
-    global server
-    global receiveThread
-    global sendThread
-    server = ServerThread(name = "blender_roblox_sync Server")
-    receiveThread = receive_messages.ReceiveMessagesThread(name = "blender_roblox_sync Receive Messages Thread")
-    sendThread = send_messages.SendMessagesThread(name = "blender_roblox_sync Send Messages Thread")
-    server.start()
-    receiveThread.start()
-    sendThread.start()
-
-def unregister(package):
-    if server is not None:
-        server.stop()
-    if receiveThread is not None:
-        receiveThread.stop()
-    if sendThread is not None:
-        sendThread.stop()
+    return {
+        "threads": (ServerThread(name = "blender_roblox_sync Server"),)
+    }

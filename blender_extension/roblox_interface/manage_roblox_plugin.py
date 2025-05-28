@@ -1,57 +1,52 @@
-import platform
-from pathlib import Path
+import bpy, shutil, platform, pathlib
 
-import bpy
-import shutil
+def register(utils):
+    
+    PLUGIN_NAME = "blender_roblox_sync.rbxm"
+    PLUGIN_PATH = pathlib.Path(__file__).parent.joinpath(PLUGIN_NAME)
 
-plugin_name = "blender_roblox_sync.rbxm"
+    def get_plugins_dir():
+        plugins_dir = pathlib.Path.home()
+        match platform.system():
+            case "Darwin":
+                plugins_dir = plugins_dir.joinpath("Documents", "Roblox", "Plugins")
+            case "Windows":
+                plugins_dir = plugins_dir.joinpath("AppData", "Local", "Roblox", "Plugins")
 
-def get_plugins_dir():
-    plugins_dir = Path.home()
-    match platform.system():
-        case "Darwin":
-            plugins_dir = plugins_dir.joinpath("Documents", "Roblox", "Plugins")
-        case "Windows":
-            plugins_dir = plugins_dir.joinpath("AppData", "Local", "Roblox", "Plugins")
+        return str(plugins_dir) if plugins_dir.is_dir() else ""
 
-    return str(plugins_dir) if plugins_dir.is_dir() else ""
+    def get_valid_path(dir):
+        path = pathlib.Path(dir)
+        if dir != "" and path.is_dir():
+            return path.joinpath(PLUGIN_NAME)
 
-plugin_path = Path(__file__).parent.joinpath(plugin_name)
-is_valid_dir = False
-
-def get_valid_path(dir):
-    path = Path(dir)
-    if dir != "" and path.is_dir():
-        return path.joinpath(plugin_name)
-
-def plugins_dir_update(self, context):
     global is_valid_dir
     is_valid_dir = False
+    def plugins_dir_update(self, context):
+        global is_valid_dir
+        is_valid_dir = False
 
-    path = get_valid_path(self.plugins_dir)
-    if path:
-        try:
-            shutil.copyfile(plugin_path, path)
-            is_valid_dir = True
-        except:
-            self.plugins_dir = ""
-    
-    last_path = get_valid_path(self.last_dir)
-    if last_path:
-        last_path.unlink(missing_ok=True)
-    
-    self.last_dir = self.plugins_dir
+        path = get_valid_path(self.plugins_dir)
+        if path:
+            try:
+                shutil.copyfile(PLUGIN_PATH, path)
+                is_valid_dir = True
+            except:
+                self.plugins_dir = ""
+        
+        if self.last_dir != self.plugins_dir:
+            last_path = get_valid_path(self.last_dir)
+            if last_path:
+                last_path.unlink(missing_ok=True)
+        self.last_dir = self.plugins_dir
 
-CustomAddonPreferences = None
-def register(package):
-    global CustomAddonPreferences
     class CustomAddonPreferences(bpy.types.AddonPreferences):
-        bl_idname = package
+        bl_idname = utils.ROOT_PACKAGE
 
         last_dir: bpy.props.StringProperty(default="")
         plugins_dir: bpy.props.StringProperty(
-            name="Local Plugin Path",
-            description = "Roblox Studio Local Plugin Folder Path",
+            name="Local Plugin pathlib.Path",
+            description = "Roblox Studio Local Plugin Folder pathlib.Path",
             default="",
             subtype='DIR_PATH',
             update=plugins_dir_update
@@ -59,16 +54,16 @@ def register(package):
     bpy.utils.register_class(CustomAddonPreferences)
 
     preferences = bpy.context.preferences
-    addon_prefs = preferences.addons[package].preferences
+    addon_prefs = preferences.addons[utils.ROOT_PACKAGE].preferences
     addon_prefs.plugins_dir = get_plugins_dir() #adds plugin
 
-def unregister(package):
-    global CustomAddonPreferences
-    if CustomAddonPreferences:
-        bpy.utils.unregister_class(CustomAddonPreferences)
-    CustomAddonPreferences = None
+    def unregister():
+        preferences = bpy.context.preferences
+        addon_prefs = preferences.addons[utils.ROOT_PACKAGE].preferences
+        if addon_prefs:
+            addon_prefs.plugins_dir = "" #removes plugin
 
-    preferences = bpy.context.preferences
-    addon_prefs = preferences.addons[package].preferences
-    if addon_prefs:
-        addon_prefs.plugins_dir = "" #removes plugin
+    return {
+        "classes": (CustomAddonPreferences,),
+        "unregister": unregister
+    }

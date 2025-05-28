@@ -1,6 +1,4 @@
-import bpy, mathutils
-import struct
-import numpy as np
+import bpy
 
 def get_loop_colors(mesh, assigned_materials):
     material_loop_colors = {}
