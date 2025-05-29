@@ -1,53 +1,85 @@
-import bpy, bl_ui, mathutils, copy
+import bpy, bl_ui, mathutils, copy, time
 
 def register(utils):
     multi_vertex_paint = utils.import_module("multi_vertex_paint")
 
-    opaque_node_properties = {
-        "ShaderNodeTexImage": {
+    def get_node_setup(mat):
+        node_properties = {}
+        if mat.use_scroll_texture:
+            node_properties["ShaderNodeUVMap"] = {
+                "properties": {
+                    "location": mathutils.Vector((-310, -100)),
+                    "width": 140,
+                    "height": 100,
+                    "uv_map": "",
+                    "show_options": False,
+                },
+            }
+            node_properties["ShaderNodeMapping"] = {
+                "properties": {
+                    "location": mathutils.Vector((-140, -100)),
+                    "width": 140,
+                    "height": 100,
+                    "vector_type": "POINT",
+                    "show_options": False,
+                },
+                "inputs": {
+                    "Rotation": {
+                        "enabled": False,
+                        "default_value": mathutils.Vector(),
+                    },
+                    "Scale": {
+                        "enabled": False,
+                        "default_value": mathutils.Vector((1, 1, 1)),
+                    },
+                },
+            }
+        if not mat.use_image_transparency:
+            node_properties["ShaderNodeMix"] = {
+                "properties": {
+                    "location": mathutils.Vector((320, -100)),
+                    "width": 140,
+                    "height": 100,
+                    "data_type": "RGBA",
+                    "blend_type": "MULTIPLY",
+                    "clamp_result": True,
+                    "clamp_factor": True,
+                    "factor_mode": "UNIFORM",
+                    "show_options": False,
+                },
+                "inputs": {
+                    "Factor_Float": {
+                        "enabled": False,
+                        "default_value": 1,
+                    },
+                },
+            }
+            node_properties["ShaderNodeVertexColor"] = {
+                "properties": {
+                    "location": mathutils.Vector((130, -350)),
+                    "width": 140,
+                    "height": 100,
+                    "layer_name": multi_vertex_paint.VERTEX_COLOR_NAME,
+                    "show_options": False,
+                },
+                "outputs": {
+                    "Alpha": { "enabled": False }
+                }
+            }
+        node_properties["ShaderNodeTexImage"] = {
             "properties": {
-                "location": mathutils.Vector((30, -50)),
+                "location": mathutils.Vector((30, -80)),
                 "width": 240,
                 "height": 100,
             },
             "inputs": {
-                "Vector": { "enabled": False }
+                "Vector": { "enabled": mat.use_scroll_texture }
             },
             "outputs": {
-                "Alpha": { "enabled": False }
+                "Alpha": { "enabled": mat.use_image_transparency }
             }
-        },
-        "ShaderNodeMix": {
-            "properties": {
-                "location": mathutils.Vector((320, -100)),
-                "width": 140,
-                "height": 100,
-                "data_type": "RGBA",
-                "blend_type": "MULTIPLY",
-                "clamp_result": True,
-                "clamp_factor": True,
-                "factor_mode": "UNIFORM",
-                "show_options": False,
-            },
-            "inputs": {
-                "Factor_Float": {
-                    "enabled": False,
-                    "default_value": 1,
-                },
-            },
-        },
-        "ShaderNodeVertexColor": {
-            "properties": {
-                "location": mathutils.Vector((130, -300)),
-                "width": 140,
-                "height": 100,
-                "layer_name": multi_vertex_paint.VERTEX_COLOR_NAME
-            },
-            "outputs": {
-                "Alpha": { "enabled": False }
-            }
-        },
-        "ShaderNodeBsdfPrincipled": {
+        }
+        node_properties["ShaderNodeBsdfPrincipled"] = {
             "properties": {
                 "location": mathutils.Vector((510, -80)),
                 "width": 240,
@@ -94,8 +126,8 @@ def register(utils):
                 "Thin Film Thickness": { "enabled": False },
                 "Thin Film IOR": { "enabled": False },
             },
-        },
-        "ShaderNodeOutputMaterial": {
+        }
+        node_properties["ShaderNodeOutputMaterial"] = {
             "properties": {
                 "location": mathutils.Vector((790, -80)),
                 "width": 140,
@@ -109,25 +141,22 @@ def register(utils):
                 "Displacement": { "enabled": False },
                 "Thickness": { "enabled": False },
             }
-        },
-    }
+        }
 
-    transparent_node_properties = copy.deepcopy(opaque_node_properties)
-    transparent_node_properties.pop("ShaderNodeMix")
-    transparent_node_properties.pop("ShaderNodeVertexColor")
-    transparent_node_properties["ShaderNodeTexImage"]["outputs"]["Alpha"] = { "enabled": True }
+        node_links = []
+        if mat.use_image_transparency:
+            node_links.append((("ShaderNodeTexImage", "Color"), ("ShaderNodeBsdfPrincipled", "Base Color")))
+            node_links.append((("ShaderNodeTexImage", "Alpha"), ("ShaderNodeBsdfPrincipled", "Alpha")))
+        else:
+            node_links.append((("ShaderNodeTexImage", "Color"), ("ShaderNodeMix", "A_Color")))
+            node_links.append((("ShaderNodeVertexColor", "Color"), ("ShaderNodeMix", "B_Color")))
+            node_links.append((("ShaderNodeMix", "Result_Color"), ("ShaderNodeBsdfPrincipled", "Base Color")))
+        if mat.use_scroll_texture:
+            node_links.append((("ShaderNodeUVMap", "UV"), ("ShaderNodeMapping", "Vector")))
+            node_links.append((("ShaderNodeMapping", "Vector"), ("ShaderNodeTexImage", "Vector")))
+        node_links.append((("ShaderNodeBsdfPrincipled", "BSDF"), ("ShaderNodeOutputMaterial", "Surface")))
 
-    opaque_node_links = [
-        [["ShaderNodeTexImage", "Color"], ["ShaderNodeMix", "A_Color"]],
-        [["ShaderNodeVertexColor", "Color"], ["ShaderNodeMix", "B_Color"]],
-        [["ShaderNodeMix", "Result_Color"], ["ShaderNodeBsdfPrincipled", "Base Color"]],
-        [["ShaderNodeBsdfPrincipled", "BSDF"], ["ShaderNodeOutputMaterial", "Surface"]],
-    ]
-    transparent_node_links = [
-        [["ShaderNodeTexImage", "Color"], ["ShaderNodeBsdfPrincipled", "Base Color"]],
-        [["ShaderNodeTexImage", "Alpha"], ["ShaderNodeBsdfPrincipled", "Alpha"]],
-        [["ShaderNodeBsdfPrincipled", "BSDF"], ["ShaderNodeOutputMaterial", "Surface"]],
-    ]
+        return node_properties, node_links
 
     def search_sockets(modify_nodes, socket_type, bl_idname, socket_identifier):
         for socket in getattr(modify_nodes.get(bl_idname), socket_type):
@@ -168,9 +197,7 @@ def register(utils):
             node.location = mathutils.Vector((200, 160))
 
     def init_custom_material(mat):
-        node_properties = transparent_node_properties if mat.use_image_transparency else opaque_node_properties
-        node_links = transparent_node_links if mat.use_image_transparency else opaque_node_links
-
+        node_properties, node_links = get_node_setup(mat)
         if mat.node_tree:
             nodes = mat.node_tree.nodes
             frame = get_custom_material_frame(nodes)
@@ -178,14 +205,14 @@ def register(utils):
             if not frame:
                 frame = nodes.new(type="NodeFrame")
                 frame.name = custom_frame_name
-                frame.use_custom_color = True
-                frame.color = mathutils.Color((0.35, 0.35, 0.35))
-                frame.label_size = 30
-                frame.shrink = True
-                frame.location = mathutils.Vector((-500, -80))
                 is_new = True
-            
+            frame.use_custom_color = True
+            frame.label_size = 30
+            frame.shrink = True
+            frame.color = mathutils.Color((0.35, 0.35, 0.35))
+            frame.location = mathutils.Vector((-500, -80))
             frame.label = get_custom_material_label(mat)
+
             modify_nodes = {}
             for node in nodes:
                 if is_in_custom_material(nodes, node, frame):
@@ -215,6 +242,12 @@ def register(utils):
                         break
                 if image:
                     modify_nodes.get("ShaderNodeTexImage").image = image
+
+            if mat.use_scroll_texture:
+                location_socket = modify_nodes.get("ShaderNodeMapping").inputs.get("Location")
+                driver = location_socket.driver_add("default_value", 1).driver
+                driver.type = "SCRIPTED"
+                driver.expression = f"frame * {-0.05 * mat.scroll_speed}"
 
             for bl_idname, node in modify_nodes.items():
                 properties = node_properties.get(bl_idname)
@@ -268,6 +301,12 @@ def register(utils):
                             alpha_socket = socket
                             break
                     layout.prop(alpha_socket, "default_value", text="Alpha")
+                
+                layout.use_property_split = False
+                layout.prop(mat, "use_scroll_texture", text="Use Scroll Texture")
+                layout.use_property_split = True
+                if mat.use_scroll_texture:
+                    layout.prop(mat, "scroll_speed", text="Scroll Speed")
             else:
                 super().draw(context)
 
@@ -278,12 +317,17 @@ def register(utils):
             disable_custom_material(self)
     bpy.types.Material.use_custom_material = bpy.props.BoolProperty(default=True, update=update_use_custom_material)
     bpy.types.Material.use_image_transparency = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
+    bpy.types.Material.use_scroll_texture = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
+    bpy.types.Material.scroll_speed = bpy.props.FloatProperty(default=1, min=-10, max=10, update=update_use_custom_material)
+
     def material_added():
         update_use_custom_material(bpy.context.material)
     def load_post(file):
+        bpy.context.scene.frame_start = 1
+        bpy.context.scene.frame_end = 60
+        bpy.ops.screen.animation_play()
         for mat in bpy.data.materials:
             update_use_custom_material(mat)
-
     return {
         "classes": (EEVEE_MATERIAL_PT_surface,),
         "listeners": (

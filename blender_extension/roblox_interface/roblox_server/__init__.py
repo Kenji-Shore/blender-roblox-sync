@@ -9,28 +9,29 @@ def register(utils):
     TIMEOUT_DURATION = 1
 
     global hook
-    global unhook
     def hook(message_name, callback):
         assert message_name in process_formats.receive_message_ids
         message_id = process_formats.receive_message_ids[message_name]
         process_formats.listen_message(message_id, callback)
+    global unhook
     def unhook(message_name, callback):
         assert message_name in process_formats.receive_message_ids
         message_id = process_formats.receive_message_ids[message_name]
         process_formats.unlisten_message(message_id, callback)
+    global fire
+    def fire(message_name, *args):
+        send_messages.send_message(message_name, *args)
 
     global is_connected
+    global is_connected_area
     is_connected = False
-    is_connected_callbacks = []
+    is_connected_area = None
     def set_is_connected(value):
         global is_connected
         if is_connected != value:
             is_connected = value
-            for callback in is_connected_callbacks:
-                callback(value)
-    global assign_is_connected_callback
-    def assign_is_connected_callback(callback):
-        is_connected_callbacks.append(callback)
+            if is_connected_area:
+                is_connected_area.tag_redraw()
 
     last_received = time.time()
     class ServerHandler(BaseHTTPRequestHandler):
@@ -48,14 +49,14 @@ def register(utils):
 
             content_length = int(self.headers['Content-Length'])
             if content_length > 0:
-                receive_messages.receiveThread.receive_message(self.rfile.read(content_length))
+                receive_messages.receive_message(self.rfile.read(content_length))
 
             self.send_response(200)
             self.end_headers()
 
-            queue_len = len(send_messages.sendThread.buffers_queued)
-            if queue_len > 0:
-                self.wfile.write(send_messages.sendThread.buffers_queued.pop(0))
+            send_buffer = send_messages.fetch_send_buffer()
+            if send_buffer:
+                self.wfile.write(send_buffer)
     class Server(ThreadingHTTPServer):
         request_queue_size = 128
         logging = False

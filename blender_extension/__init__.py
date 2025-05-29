@@ -11,9 +11,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import bpy, queue, importlib, pathlib
+import bpy, queue, importlib, pathlib, inspect
 from contextlib import contextmanager
 
+ROOT_PATH = pathlib.Path(__file__).parent
 class Utils:
     ROOT_PACKAGE = __package__
     def glob_from_parent(self, file_path_name, glob_str):
@@ -22,7 +23,7 @@ class Utils:
         modules = {}
         for module_path in parent_path.glob(glob_str):
             if module_path != file_path:
-                relative_path = module_path.relative_to(__file__)
+                relative_path = module_path.relative_to(ROOT_PATH)
                 module_name = relative_path.stem
                 parts = (self.ROOT_PACKAGE,) + relative_path.parts[:-1] + (module_name,)
                 if module_name == "__init__":
@@ -50,9 +51,10 @@ class Utils:
 
     __listen_handlers = {}
     def listen_handler(self, handler_name, callback):
+        args_count = len(inspect.signature(callback).parameters)
         @bpy.app.handlers.persistent
         def wrapped_callback(*args):
-            return callback(*args)
+            return callback(*args[:args_count])
         
         key = ()
         self.__listen_handlers[key] = (handler_name, wrapped_callback)
@@ -101,7 +103,7 @@ class Utils:
                 
                 self.__dependency_stack.append(module_name)
                 if hasattr(module, "register"):
-                    returns = getattr(module, "register")(utils)
+                    returns = getattr(module, "register")(self)
                     if returns:
                         if "classes" in returns:
                             for cls in returns["classes"]:
@@ -152,7 +154,7 @@ class Utils:
 
         self.__listeners = (
             self.listen_handler("depsgraph_update_post", depsgraph_update_post),
-            self.listen_timer(deferred_mode_updates, persistent=True),
+            self.listen_timer(deferred_mode_updates, persistent=True)
         )
 
         self.__modules = self.glob_from_parent(__file__, "**/*.py")
@@ -162,7 +164,7 @@ class Utils:
         for module_name in self.__modules.keys():
             self.import_module(module_name)
 
-    def __del__(self):
+    def unregister(self):
         for listener in self.__listeners:
             self.unlisten(listener)
         self.__registered_modules_returns.reverse()
@@ -171,7 +173,7 @@ class Utils:
                 returns["unregister"]()
             if "classes" in returns:
                 for cls in returns["classes"]:
-                    bpy.utils.register_class(cls)
+                    bpy.utils.unregister_class(cls)
             if "threads" in returns:
                 for thread in returns["threads"]:
                     thread.stop()
@@ -184,4 +186,6 @@ def register():
     utils = Utils()
 
 def unregister():
-    del utils
+    global utils
+    utils.unregister()
+    utils = None

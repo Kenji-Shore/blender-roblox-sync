@@ -64,11 +64,8 @@ def register(utils):
         bl_category = "Roblox"
         bl_label = "Roblox Sync"
         
-        has_set_callback = False
         def draw(self, context):
-            if self.has_set_callback:
-                self.has_set_callback = True
-                roblox_server.assign_is_connected_callback(lambda: context.area.tag_redraw())
+            roblox_server.is_connected_area = context.area
 
             preferences = context.preferences
             addon_prefs = preferences.addons[utils.ROOT_PACKAGE].preferences

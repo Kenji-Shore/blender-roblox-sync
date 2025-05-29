@@ -1,13 +1,9 @@
 //!native
 import { AssetService } from "@rbxts/services";
-import { Consumer } from "../index.server";
 
-interface ImageConsumer {
-	consumer: Consumer;
-}
 export interface ImageAsset {
+	name: string;
 	content: Content;
-	consumers: ImageConsumer[];
 }
 export namespace ImageAsset {
 	const imageAssets = new Map<string, ImageAsset>();
