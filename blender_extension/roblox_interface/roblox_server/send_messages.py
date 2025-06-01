@@ -1,19 +1,9 @@
-import time, threading, sys
+from .pause_thread import PauseThread;
 
 def register(utils):
     process_formats = utils.import_module("process_formats")
 
-    class SendMessagesThread(threading.Thread):
-        def pause(self):
-            self.paused = True
-            while self.paused:
-                time.sleep(0.001)
-                if self.stop_thread:
-                    sys.exit()
-
-        def unpause(self):
-            self.paused = False
-        
+    class SendMessagesThread(PauseThread):
         def send_message(self, message_name, *args):
             assert message_name in process_formats.send_message_ids
             message_id = process_formats.send_message_ids[message_name]
@@ -29,6 +19,7 @@ def register(utils):
                 self.buffer.append(data[0:overflow])
                 self.buffers_queued.append(b"".join(self.buffer))
                 self.buffer = [data[overflow:]]
+                self.buf_len = overflow
                 
         def parse(self, args, args_count, format_data, **masks):
             parsed_type = type(format_data)
@@ -37,17 +28,14 @@ def register(utils):
                     args_count = self.parse(args, args_count, sub_format_data, **masks)
             else:
                 args_count = process_formats.write_funcs[format_data["type"]](self, args, args_count, format_data, **masks)
-        
-        def stop(self):
-            self.stop_thread = True
 
         def run(self):
             self.buffer = []
             self.buf_len = 0
             self.args_queued = []
             self.buffers_queued = []
-            self.stop_thread = False
 
+            self.stop_thread = False
             while not self.stop_thread:
                 if len(self.args_queued) == 0:
                     self.pause()
@@ -55,6 +43,9 @@ def register(utils):
                 message_id = args[0]
                 self.write_buffer(process_formats.message_id_format.pack(message_id), process_formats.message_id_format.size)
                 self.parse(args, 1, process_formats.message_formats[message_id])
+                self.buffers_queued.append(b"".join(self.buffer))
+                self.buffer = []
+                self.buf_len = 0
 
     sendThread = SendMessagesThread(name = "blender_roblox_sync Send Messages Thread")
     global send_message

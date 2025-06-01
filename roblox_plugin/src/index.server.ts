@@ -1,6 +1,6 @@
 //!native
 
-import Server from "./server";
+// import Server from "./server";
 import { MeshAsset } from "./MeshAsset";
 import { ImageAsset } from "./ImageAsset";
 import { Workspace } from "@rbxts/services";
@@ -8,10 +8,6 @@ import { Workspace } from "@rbxts/services";
 // const toolbar = plugin.CreateToolbar("test");
 // const button = toolbar.CreateButton("testbutton", "", "");
 // button.Click.Connect(() => {});
-
-// const increment: number = (plugin.GetSetting("increment") as number | null) ?? 0;
-// plugin.SetSetting("increment", increment + 1);
-// print("plugin ran", increment, plugin.GetSetting("Rojo_confirmationBehavior"));
 
 export interface Consumer {
 	instance?: Model | MeshPart;
@@ -36,6 +32,6 @@ const objects = new Map<string, object>();
 // 	}
 // });
 
-plugin.Unloading.Connect(() => {
-	Server.Unloading();
-});
+// plugin.Unloading.Connect(() => {
+// 	Server.Unloading();
+// });

@@ -1,4 +1,4 @@
-import bpy, bl_ui, mathutils, copy, time
+import bpy, bl_ui, mathutils
 
 def register(utils):
     multi_vertex_paint = utils.import_module("multi_vertex_paint")

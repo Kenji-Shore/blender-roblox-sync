@@ -64,6 +64,6 @@ export namespace Material {
 		// };
 	}
 
-	export function addConsumer() {}
+	// export function addConsumer() {}
 }
 export default Material;

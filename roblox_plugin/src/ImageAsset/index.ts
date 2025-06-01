@@ -33,30 +33,31 @@ export namespace ImageAsset {
 
 		image.WritePixelsBuffer(Vector2.zero, size, pixelsBuffer);
 		return {
+			name: "test",
 			content: Content.fromObject(image),
-			consumers: [],
+			// consumers: [],
 		};
 	}
 
-	export function addConsumer(imageAsset: ImageAsset, consumer: Consumer) {
-		const imageConsumer: ImageConsumer = {
-			consumer: consumer,
-		};
-		imageAsset.consumers.push(imageConsumer);
-		if (consumer.useImageTransparency) {
-			for (const meshPart of consumer.meshParts) {
-				meshPart.TextureContent = imageAsset.content;
-				meshPart.Transparency = 0.02;
-				// let surfaceAppearance = new Instance("SurfaceAppearance");
-				// surfaceAppearance.AlphaMode = Enum.AlphaMode.Transparency;
-				// surfaceAppearance.ColorMap = this.assetId;
-				// surfaceAppearance.Parent = meshPart;
-			}
-		} else {
-			for (const meshPart of consumer.meshParts) {
-				meshPart.TextureContent = imageAsset.content;
-			}
-		}
-	}
+	// export function addConsumer(imageAsset: ImageAsset, consumer: Consumer) {
+	// 	const imageConsumer: ImageConsumer = {
+	// 		consumer: consumer,
+	// 	};
+	// 	imageAsset.consumers.push(imageConsumer);
+	// 	if (consumer.useImageTransparency) {
+	// 		for (const meshPart of consumer.meshParts) {
+	// 			meshPart.TextureContent = imageAsset.content;
+	// 			meshPart.Transparency = 0.02;
+	// 			// let surfaceAppearance = new Instance("SurfaceAppearance");
+	// 			// surfaceAppearance.AlphaMode = Enum.AlphaMode.Transparency;
+	// 			// surfaceAppearance.ColorMap = this.assetId;
+	// 			// surfaceAppearance.Parent = meshPart;
+	// 		}
+	// 	} else {
+	// 		for (const meshPart of consumer.meshParts) {
+	// 			meshPart.TextureContent = imageAsset.content;
+	// 		}
+	// 	}
+	// }
 }
 export default ImageAsset;

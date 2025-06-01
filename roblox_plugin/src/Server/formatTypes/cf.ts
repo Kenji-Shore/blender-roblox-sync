@@ -1,0 +1,26 @@
+// //!native
+
+// export function read(b: Buffer): CFrame {
+// 	const x = b.read(buffer.readf64, 8);
+// 	const y = b.read(buffer.readf64, 8);
+// 	const z = b.read(buffer.readf64, 8);
+
+// 	const qX = b.read(buffer.readi16, 2) / 32767;
+// 	const qY = b.read(buffer.readi16, 2) / 32767;
+// 	const qZ = b.read(buffer.readi16, 2) / 32767;
+// 	const qW = b.read(buffer.readi16, 2) / 32767;
+// 	return new CFrame(x, y, z, qX, qY, qZ, qW);
+// }
+// export function write(b: Buffer, value: CFrame) {
+// 	b.write(buffer.writef64, 8, value.X);
+// 	b.write(buffer.writef64, 8, value.Y);
+// 	b.write(buffer.writef64, 8, value.Z);
+
+// 	const [axis, angle] = value.Rotation.ToAxisAngle();
+// 	const cos = math.cos(angle / 2);
+// 	const sin = math.sin(angle / 2);
+// 	b.write(buffer.writei16, 2, math.round(axis.X * sin * 32767));
+// 	b.write(buffer.writei16, 2, math.round(axis.Y * sin * 32767));
+// 	b.write(buffer.writei16, 2, math.round(axis.Z * sin * 32767));
+// 	b.write(buffer.writei16, 2, math.round(cos * 32767));
+// }

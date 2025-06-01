@@ -1,0 +1,15 @@
+// //!native
+
+// export function read(b: Buffer): buffer {
+// 	const bufLen = b.read(buffer.readu32, 4);
+// 	const [readBuffer, readOffset] = b.pollBuffer(bufLen);
+// 	const bufferValue = buffer.create(bufLen);
+// 	buffer.copy(bufferValue, 0, readBuffer, readOffset, bufLen);
+// 	return bufferValue;
+// }
+// export function write(b: Buffer, value: buffer) {
+// 	const bufLen = buffer.len(value);
+// 	b.write(buffer.writeu32, 4, bufLen);
+// 	const offset = b.extendBuffer(bufLen);
+// 	buffer.copy(b.buffer, offset, value);
+// }

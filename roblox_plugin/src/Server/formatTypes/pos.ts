@@ -1,0 +1,13 @@
+// //!native
+
+// export function read(b: Buffer): Vector3 {
+// 	const x = b.read(buffer.readf32, 4);
+// 	const y = b.read(buffer.readf32, 4);
+// 	const z = b.read(buffer.readf32, 4);
+// 	return new Vector3(x, y, z);
+// }
+// export function write(b: Buffer, value: Vector3) {
+// 	b.write(buffer.writef32, 4, value.X);
+// 	b.write(buffer.writef32, 4, value.Y);
+// 	b.write(buffer.writef32, 4, value.Z);
+// }

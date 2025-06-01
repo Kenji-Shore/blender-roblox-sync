@@ -1,7 +1,7 @@
 def read(self, format_data, **masks):
 	register_masks = format_data["register_mask"]
 	format = format_data["count_format"]
-	bitmask, = format.unpack_from(*self.__read_buffer(format.size))
+	bitmask, = format.unpack_from(*self.read_buffer(format.size))
 
 	bools = []
 	for _ in range(len(register_masks)):
@@ -12,7 +12,7 @@ def read(self, format_data, **masks):
 		masks[mask] = bool_value
 
 	args = tuple(bools)
-	args += self.__parse(format_data["data"], **masks)
+	args += self.parse(format_data["data"], **masks)
 	return args
 
 def write(self, args, args_count, format_data, **masks):
@@ -30,6 +30,6 @@ def write(self, args, args_count, format_data, **masks):
 		masks[mask] = bool_value
 
 	format = format_data["count_format"]
-	self.__write_buffer(format.pack(bitmask), format.size)
-	args_count = self.__parse(args, args_count, format_data["data"], **masks)
+	self.write_buffer(format.pack(bitmask), format.size)
+	args_count = self.parse(args, args_count, format_data["data"], **masks)
 	return args_count
