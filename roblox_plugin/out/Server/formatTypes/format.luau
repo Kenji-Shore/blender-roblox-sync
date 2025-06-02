@@ -1,0 +1,22 @@
+-- Compiled with roblox-ts v3.0.0
+-- function getDatatypes(): Datatypes {
+-- 	const datatypes: Partial<Datatypes> = {};
+-- 	for (const [formatData, rawData] of pairs(
+-- 		messageFormatsFile.datatypes as Record<NumberFormatKeys, { luau: number; python: string }>,
+-- 	)) {
+-- 		const readFunc = buffer["read" + formatData];
+-- 		const writeFunc = buffer["write" + formatData];
+-- 		const byteSize: number = rawData.luau;
+-- 		datatypes[formatData] = {
+-- 			read: (b: Buffer): number => {
+-- 				return b.read(readFunc, byteSize);
+-- 			},
+-- 			write: (b: Buffer, value: number) => {
+-- 				b.write(writeFunc, byteSize, value);
+-- 			},
+-- 		};
+-- 	}
+-- 	return datatypes;
+-- }
+-- const datatypes = getDatatypes();
+return nil

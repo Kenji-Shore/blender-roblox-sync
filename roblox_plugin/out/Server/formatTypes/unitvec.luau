@@ -1,0 +1,19 @@
+-- Compiled with roblox-ts v3.0.0
+-- //!native
+-- const YAW = 32767 / math.pi;
+-- const INV_YAW = 1 / YAW;
+-- const PITCH = 32767 / (0.5 * math.pi);
+-- const INV_PITCH = 1 / PITCH;
+-- export function read(b: Buffer): Vector3 {
+-- 	const normalYaw = b.read(buffer.readi16, 2) * INV_YAW;
+-- 	const normalPitch = b.read(buffer.readi16, 2) * INV_PITCH;
+-- 	const horizontal = math.cos(normalPitch);
+-- 	return new Vector3(math.cos(normalYaw) * horizontal, math.sin(normalPitch), math.sin(normalYaw) * horizontal);
+-- }
+-- export function write(b: Buffer, value: Vector3) {
+-- 	const normalYaw = math.atan2(value.Z, value.X);
+-- 	const normalPitch = math.asin(value.Y);
+-- 	b.write(buffer.writei16, 2, math.round(normalYaw * YAW));
+-- 	b.write(buffer.writei16, 2, math.round(normalPitch * PITCH));
+-- }
+return nil

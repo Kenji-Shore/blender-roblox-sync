@@ -51,9 +51,7 @@ do
 		-- };
 	end
 	_container.create = create
-	local function addConsumer()
-	end
-	_container.addConsumer = addConsumer
+	-- export function addConsumer() {}
 end
 local default = Material
 return {

@@ -14,6 +14,5 @@ export interface Material {
 }
 export declare namespace Material {
     function create(materialData: MaterialData): void;
-    function addConsumer(): void;
 }
 export default Material;

@@ -1,0 +1,11 @@
+-- Compiled with roblox-ts v3.0.0
+-- //!native
+-- export function read(b: Buffer): Color3 {
+-- 	return new Color3(b.read(buffer.readu8, 1) / 255, b.read(buffer.readu8, 1) / 255, b.read(buffer.readu8, 1) / 255);
+-- }
+-- export function write(b: Buffer, value: Color3) {
+-- 	b.write(buffer.writeu8, 1, math.round(255 * value.R));
+-- 	b.write(buffer.writeu8, 1, math.round(255 * value.G));
+-- 	b.write(buffer.writeu8, 1, math.round(255 * value.B));
+-- }
+return nil

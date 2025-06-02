@@ -1,7 +1,7 @@
 import * as ProcessFormats from "./processFormats";
 import PauseThread from "./pauseThread";
 
-interface ReceiveMessagesThread extends PauseThread {
+export interface ReceiveMessagesThread extends PauseThread {
 	buffer: buffer;
 	bufLen: number;
 	offset: number;

@@ -1,13 +1,9 @@
 --!native
 -- Compiled with roblox-ts v3.0.0
-local TS = require(script.include.RuntimeLib)
-local Server = TS.import(script, script, "server").default
+-- import Server from "./server";
 -- const toolbar = plugin.CreateToolbar("test");
 -- const button = toolbar.CreateButton("testbutton", "", "");
 -- button.Click.Connect(() => {});
--- const increment: number = (plugin.GetSetting("increment") as number | null) ?? 0;
--- plugin.SetSetting("increment", increment + 1);
--- print("plugin ran", increment, plugin.GetSetting("Rojo_confirmationBehavior"));
 local meshes = {}
 local images = {}
 local objects = {}
@@ -22,6 +18,6 @@ local objects = {}
 -- 		objects.set(objectHash, Object.create(objectData));
 -- 	}
 -- });
-plugin.Unloading:Connect(function()
-	Server.Unloading()
-end)
+-- plugin.Unloading.Connect(() => {
+-- 	Server.Unloading();
+-- });
