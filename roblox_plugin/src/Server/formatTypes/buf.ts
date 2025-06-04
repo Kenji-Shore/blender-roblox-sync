@@ -1,15 +1,34 @@
-// //!native
+//!native
+import type * as ProcessFormats from "../processFormats";
+import SendMessagesThread from "../sendMessages";
+import ReceiveMessagesThread from "../receiveMessages";
 
-// export function read(b: Buffer): buffer {
-// 	const bufLen = b.read(buffer.readu32, 4);
-// 	const [readBuffer, readOffset] = b.pollBuffer(bufLen);
-// 	const bufferValue = buffer.create(bufLen);
-// 	buffer.copy(bufferValue, 0, readBuffer, readOffset, bufLen);
-// 	return bufferValue;
-// }
-// export function write(b: Buffer, value: buffer) {
-// 	const bufLen = buffer.len(value);
-// 	b.write(buffer.writeu32, 4, bufLen);
-// 	const offset = b.extendBuffer(bufLen);
-// 	buffer.copy(b.buffer, offset, value);
-// }
+export function read(
+	receiveThread: ReceiveMessagesThread,
+	args: defined[],
+	formatData: ProcessFormats.FormatData,
+	masks: Map<string, boolean>,
+) {
+	const [readBuffer, readOffset] = ReceiveMessagesThread.readBuffer(receiveThread, 4);
+	const bufLen = buffer.readu32(readBuffer, readOffset);
+	const [readBuffer2, readOffset2] = ReceiveMessagesThread.readBuffer(receiveThread, bufLen);
+	const bufferValue = buffer.create(bufLen);
+	buffer.copy(bufferValue, 0, readBuffer2, readOffset2, bufLen);
+	args.push(bufferValue);
+}
+export function write(
+	sendThread: SendMessagesThread,
+	args: defined[],
+	argsCount: number,
+	formatData: ProcessFormats.FormatData,
+	masks: Map<string, boolean>,
+): number {
+	const value = args[argsCount] as buffer;
+	const bufLen = buffer.len(value);
+
+	const data = buffer.create(4 + bufLen);
+	buffer.writeu32(data, 0, bufLen);
+	buffer.copy(data, 4, value);
+	SendMessagesThread.writeBuffer(sendThread, data, 4 + bufLen);
+	return argsCount + 1;
+}

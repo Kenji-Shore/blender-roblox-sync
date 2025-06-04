@@ -2,7 +2,7 @@
 local TS = require(script.Parent.Parent.include.RuntimeLib)
 local ProcessFormats = TS.import(script, script.Parent, "processFormats")
 local PauseThread = TS.import(script, script.Parent, "pauseThread").default
-print(ProcessFormats.SEND_LIMIT)
+local ReceiveMessagesThread
 local ReceiveMessagesThread = {}
 do
 	local _container = ReceiveMessagesThread
@@ -35,102 +35,44 @@ do
 		return readBuffer, readOffset
 	end
 	_container.readBuffer = readBuffer
-	local function test()
-		print("huh")
+	local function parse(receiveThread, args, formatData, masks)
+		if not (formatData.type ~= nil) then
+			for _, subFormatData in formatData do
+				parse(receiveThread, args, subFormatData, masks)
+			end
+		else
+			local _readFuncs = ProcessFormats.readFuncs
+			local _type = formatData.type
+			_readFuncs[_type](receiveThread, args, formatData, masks)
+		end
 	end
-	_container.test = test
+	_container.parse = parse
+	local function create()
+		local receiveThread = {
+			buffer = buffer.create(0),
+			bufLen = 0,
+			offset = 0,
+			buffersQueued = {},
+			stopThread = false,
+		}
+		task.spawn(function()
+			while not receiveThread.stopThread do
+				local format = ProcessFormats.messageIdFormat
+				local readBuffer, readOffset = ReceiveMessagesThread.readBuffer(receiveThread, format.size)
+				local messageId = format.read(readBuffer, readOffset)
+				local args = {}
+				local masks = {}
+				parse(receiveThread, args, ProcessFormats.messageFormats[messageId + 1], masks)
+				for _, callback in ProcessFormats.messageListeners[messageId] do
+					task.spawn(callback, unpack(ProcessFormats.deepcopy(args)))
+				end
+			end
+		end)
+		return receiveThread
+	end
+	_container.create = create
 end
 local default = ReceiveMessagesThread
--- class ReceiveSignalThread {
--- 	private buffer: Buffer;
--- 	private stopThread: boolean;
--- 	receiveSignal(newBuffer: buffer) {
--- 		this.buffer.receiveBuffer(newBuffer);
--- 	}
--- 	private parseArgs(formatData: FormatData, masks = new Map<string, boolean>()): unknown[] {
--- 		const args: unknown[] = [];
--- 		let argCount = 0;
--- 		const parse = (formatData: FormatData, masks: Map<string, boolean>) => {
--- 			if (typeIs(formatData, "string")) {
--- 				//is string or number
--- 				const value = (datatypes[formatData].read as ReadBuffer<unknown>)(this.buffer);
--- 				args[argCount] = value;
--- 				argCount += 1;
--- 			} else if ("register_mask" in formatData) {
--- 				const rawRegisterMasks = formatData.register_mask;
--- 				const registerMasks = typeIs(rawRegisterMasks, "table") ? rawRegisterMasks : [rawRegisterMasks];
--- 				const maskCount = registerMasks.size();
--- 				const bools: boolean[] = [];
--- 				let bitmask = getFormatForCount(maskCount).read(this.buffer);
--- 				for (const _ of $range(0, maskCount - 1)) {
--- 					bools.insert(0, !!(bitmask & 1));
--- 					bitmask >>= 1;
--- 				}
--- 				const newMasks = deepcopy(masks);
--- 				for (const i of $range(0, maskCount - 1)) {
--- 					args[argCount + i] = bools[i];
--- 					newMasks.set(registerMasks[i], bools[i]);
--- 				}
--- 				argCount += maskCount;
--- 				parse(formatData.data, newMasks);
--- 			} else if ("mask" in formatData) {
--- 				const mask = formatData.mask;
--- 				if (masks.get(mask)) {
--- 					parse(formatData.data, masks);
--- 				}
--- 			} else if ("repeat" in formatData) {
--- 				for (const _ of $range(0, formatData.repeat - 1)) {
--- 					parse(formatData.data, masks);
--- 				}
--- 			} else if ("value" in formatData) {
--- 				if (formatData.index) {
--- 					//is dictionary
--- 					const map = new Map();
--- 					const mapSize = datatypes.u32.read(this.buffer);
--- 					for (const _ of $range(0, mapSize - 1)) {
--- 						const k = this.parseArgs(formatData.index, masks)[0];
--- 						const v = this.parseArgs(formatData.value, masks);
--- 						map.set(k, v.size() > 1 ? v : v[0]);
--- 					}
--- 					args[argCount] = map;
--- 				} else {
--- 					// //is array
--- 					const arraySize = datatypes.u32.read(this.buffer);
--- 					const array = new Array(arraySize);
--- 					for (const i of $range(0, arraySize - 1)) {
--- 						const v = this.parseArgs(formatData.value, masks);
--- 						array[i] = v.size() > 1 ? v : v[0];
--- 					}
--- 					args[argCount] = array;
--- 				}
--- 				argCount += 1;
--- 			} else {
--- 				//is args list
--- 				for (const subData of formatData) {
--- 					parse(subData, masks);
--- 				}
--- 			}
--- 		};
--- 		parse(formatData, masks);
--- 		return args;
--- 	}
--- 	stop() {
--- 		this.stopThread = true;
--- 	}
--- 	constructor() {
--- 		this.buffer = new Buffer();
--- 		this.stopThread = false;
--- 		task.spawn(() => {
--- 			while (!this.stopThread) {
--- 				const messageId = messageIdFormat.read(this.buffer);
--- 				const args = this.parseArgs(messages[messageId].data);
--- 				for (const callback of messageListeners[messageId]) {
--- 					task.spawn(callback, ...deepcopy(args));
--- 				}
--- 			}
--- 		});
--- 	}
--- }
 return {
 	ReceiveMessagesThread = ReceiveMessagesThread,
 	default = default,

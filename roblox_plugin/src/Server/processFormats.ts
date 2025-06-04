@@ -2,163 +2,203 @@ import messageFormatsFile from "./message_formats.json";
 import type SendMessagesThread from "./sendMessages";
 import type ReceiveMessagesThread from "./receiveMessages";
 
-// export const sendMessageIds = new Map<string, number>();
+export type Values<T> = T[keyof T];
+type SimpleFormats = "str" | "pos" | "pos2d" | "cf" | "vec" | "unitvec" | "hash" | "col" | "buf";
+const DATATYPES = {
+	u8: 1,
+	i8: 1,
+	u16: 2,
+	i16: 2,
+	u32: 4,
+	i32: 4,
+	f32: 4,
+	f64: 8,
+} as const;
+type Datatypes = typeof DATATYPES;
 
-type SimpleFormatTypes = "str" | "pos" | "pos2d" | "cf" | "vec" | "unitvec" | "hash" | "col" | "buf"
-type ComplexFormatTypes = "repeat" | "format" | "mask" | "register_mask" | "array" | "dict"
-type NumberFormatKeys = keyof typeof messageFormatsFile.datatypes;
-type RawFormatData = SimpleFormatTypes | NumberFormatKeys | { index: string | undefined; value: RawFormatData }
-					| { register_mask: string | string[]; data: FormatData }
-	| { mask: string; data: FormatData }
-	| { repeat: number; data: FormatData }
-	| FormatData[];
+type RawFormatData =
+	| SimpleFormats
+	| keyof Datatypes
+	| { index?: RawFormatData; value: RawFormatData }
+	| { register_mask: string | string[]; data: RawFormatData }
+	| { mask: string; data: RawFormatData }
+	| { repeat: number; data: RawFormatData }
+	| RawFormatData[];
 
-
-type Formats = {
-	str: string;
-	pos: Vector3;
-	pos2d: Vector2;
-	cf: CFrame;
-	vec: Vector3;
-	unitvec: Vector3;
-	hash: string;
-	col: Color3;
-	buf: buffer;
-} & Record<NumberFormatKeys, number>;
-
-type FormatKeys = keyof Formats;
-type FormatData =
-	| FormatKeys
-	| { index: string | undefined; value: FormatData }
-	| { register_mask: string | string[]; data: FormatData }
-	| { mask: string; data: FormatData }
-	| { repeat: number; data: FormatData }
-	| FormatData[];
-
-function transformFormat(formatData: unknown, requiredType?: keyof CheckableTypes) {
-	assert(!requiredType || typeIs(formatData, requiredType));
-	if (typeIs(formatData, "table")) {
-		if ("value" in formatData) { //is array or dict
-			if ("index" in formatData) {
-				formatData["index"] = transformFormat(formatData["index"], "string");
-				formatData.set("type", "dict");
-			} else {
-				formatData["type"] = "array"
-			}
-			formatData["value"] = transformFormat(formatData["value"])
-		} else if ("data" in formatData) { //is masked data or repeated data
-			formatData["data"] = transformFormat(formatData["data"])
-			if "mask" in formatData:
-				formatData["type"] = "mask"
-			elif "repeat" in formatData:
-				formatData["type"] = "repeat"
-			elif "register_mask" in formatData:
-				register_mask = formatData["register_mask"]
-				formatData["register_mask"] = tuple(register_mask) if type(register_mask) is list else (register_mask,)
-				formatData["count_format"] = get_format_for_count(len(formatData["register_mask"]))
-				formatData["type"] = "register_mask"
-		}
-	} else {
-
-	}
-	else:
-		if parsed_type is str:
-			formatData = [formatData]
-
-		stack_datatype = None
-		stack_count = 0
-		merge_str = ""
-		merge_count = 0
-
-		list_len = len(formatData)
-		list_index = 0
-		while True:
-			raw = formatData[list_index] if list_index < list_len else None
-			is_str = type(raw) is str
-			datatype = datatypes[raw]["python"] if is_str and (raw in datatypes) else None
-			if datatype == stack_datatype:
-				stack_count += 1
-			else:
-				if stack_datatype:
-					merge_str += (str(stack_count) + stack_datatype) if stack_count > 1 else stack_datatype
-					merge_count += stack_count
-				stack_datatype = datatype
-				stack_count = 1
-
-			if datatype:
-				formatData.pop(list_index)
-				list_len -= 1
-			else:
-				if merge_str != "":
-					formatData.insert(list_index, {
-						"count": merge_count,
-						"format": struct.Struct("<" + merge_str),
-						"type": "format"
-					})
-					merge_str = ""
-					merge_count = 0
-					list_len += 1
-					list_index += 1
-
-				if raw:
-					formatData[list_index] = {"type": raw} if is_str else transform_format(raw)
-				list_index += 1
-
-			if not raw:
-				break
-
-		if list_len == 1:
-			formatData = formatData[0]
-	return formatData
-}
-
-type UnionParam<Func, Param> = Param extends unknown[]
-	? (...args: [...Parameters<Func>, ...Param]) => ReturnType<Func>
-	: never;
-type OptionalParam<Func, Param> = UnionParam<Func, Param | []>;
-type ReadFunc<T> = OptionalParam<(b: buffer, offset: number) => T, [count: number]>;
-type WriteFunc<T> = OptionalParam<(b: buffer, offset: number, value: T) => void, [count: number]>;
-
-type ReadBuffer<T> = (b: Buffer) => T;
-type WriteBuffer<T> = (b: Buffer, value: T) => void;
-
-interface Datatype<T> {
-	read: ReadBuffer<T>;
-	write: WriteBuffer<T>;
-}
-
-type ReadBufferKeys = `read${NumberFormatKeys}`;
-type WriteBufferKeys = `write${NumberFormatKeys}`;
-type Datatypes = {
-	[Key in FormatKeys]: Datatype<Formats[Key]>;
+export type BufferFunctions = {
+	[T in keyof Datatypes]: {
+		size: Datatypes[T];
+		read: (typeof buffer)[`read${T}`];
+		write: (typeof buffer)[`write${T}`];
+	};
 };
 
-interface MessageFormat {
-	name: string;
-	sender: "python" | "luau";
-	data: FormatData;
+type CountFormat = BufferFunctions["u8" | "u16" | "u32"];
+export function getFormatForCount(count: number): CountFormat {
+	return [
+		{
+			size: 1,
+			read: buffer.readu8,
+			write: buffer.writeu8,
+		},
+		{
+			size: 2,
+			read: buffer.readu16,
+			write: buffer.writeu16,
+		},
+		{
+			size: 4,
+			read: buffer.readu32,
+			write: buffer.writeu32,
+		},
+	][math.min(math.ceil(math.log(2 * math.max(math.log(count, 256), 1), 2)) - 1, 2)] as CountFormat;
 }
 
-type Callback = (...args: unknown[]) => void;
-const sendMessageIds: Record<string, number> = {};
-const receiveMessageIds: Record<string, number> = {};
-const messageListeners: Record<number, Callback[]> = {};
+export type FormatData =
+	| Values<{
+			[T in SimpleFormats]: {
+				type: T;
+			};
+	  }>
+	| {
+			type: "format";
+			totalSize: number;
+			format: Values<BufferFunctions>[];
+	  }
+	| { type: "array"; value: FormatData }
+	| { type: "dict"; index: FormatData; value: FormatData }
+	| { type: "register_mask"; register_mask: string[]; count_format: CountFormat; data: FormatData }
+	| { type: "mask"; mask: string; data: FormatData }
+	| { type: "repeat"; repeat: number; data: FormatData }
+	| FormatData[];
 
-const sendLimit = messageFormatsFile.send_limit;
-const messages = messageFormatsFile.messages as MessageFormat[];
-const totalMessages = messages.size();
-for (const i of $range(0, totalMessages - 1)) {
-	const message: MessageFormat = messages[i];
-	const messageName = message.name;
-	if (message.sender === "luau") {
-		sendMessageIds[messageName] = i;
+function transformFormat(rawFormatData: RawFormatData, requiredType?: keyof CheckableTypes): FormatData {
+	assert(!requiredType || typeIs(rawFormatData, requiredType));
+	if (typeIs(rawFormatData, "table")) {
+		if ("value" in rawFormatData) {
+			//is array or dict
+			const value = transformFormat(rawFormatData.value);
+			if ("index" in rawFormatData) {
+				return {
+					type: "dict",
+					index: transformFormat(rawFormatData.index!, "string"),
+					value: value,
+				};
+			} else {
+				return {
+					type: "array",
+					value: value,
+				};
+			}
+		} else if ("data" in rawFormatData) {
+			const data = transformFormat(rawFormatData.data);
+			if ("mask" in rawFormatData) {
+				return {
+					type: "mask",
+					mask: rawFormatData.mask,
+					data: data,
+				};
+			} else if ("repeat" in rawFormatData) {
+				return {
+					type: "repeat",
+					repeat: rawFormatData.repeat,
+					data: data,
+				};
+			} else if ("register_mask" in rawFormatData) {
+				const raw_register_mask = rawFormatData.register_mask;
+				const register_mask = typeIs(raw_register_mask, "table") ? raw_register_mask : [raw_register_mask];
+				return {
+					type: "register_mask",
+					register_mask: register_mask,
+					count_format: getFormatForCount(register_mask.size()),
+					data: data,
+				};
+			}
+		}
+	}
+
+	if (!typeIs(rawFormatData, "table")) {
+		rawFormatData = [rawFormatData];
+	}
+	const formatData: FormatData[] = [];
+	let mergeFormats: Values<BufferFunctions>[] = [];
+	let totalSize = 0;
+	function writeFormat() {
+		if (mergeFormats.size() > 0) {
+			formatData.push({
+				type: "format",
+				totalSize: totalSize,
+				format: mergeFormats,
+			});
+			mergeFormats = [];
+			totalSize = 0;
+		}
+	}
+	for (const raw of rawFormatData) {
+		const isStr = typeIs(raw, "string");
+		if (isStr && raw in DATATYPES) {
+			const size = DATATYPES[raw as keyof Datatypes];
+			totalSize += size;
+			mergeFormats.push({
+				size: size,
+				read: buffer[`read${raw as keyof Datatypes}`],
+				write: buffer[`write${raw as keyof Datatypes}`],
+			});
+		} else {
+			writeFormat();
+			if (isStr) {
+				formatData.push({
+					type: raw as SimpleFormats,
+				});
+			} else {
+				formatData.push(transformFormat(raw));
+			}
+		}
+	}
+	writeFormat();
+
+	if (formatData.size() === 1) {
+		return formatData[0];
 	} else {
-		receiveMessageIds[messageName] = i;
-		messageListeners[i] = [];
+		return formatData;
 	}
 }
 
-function deepcopy<T>(object: T): T {
+interface MessageFormat<T> {
+	name: string;
+	sender: "python" | "luau";
+	data: T;
+}
+
+export type Callback = (...args: defined[]) => void;
+export const messageListeners: Record<number, Callback[]> = {};
+export function listenMessage(messageId: number, callback: Callback) {
+	messageListeners[messageId].push(callback);
+}
+export function unlistenMessage(messageId: number, callback: Callback) {
+	messageListeners[messageId].remove(messageListeners[messageId].indexOf(callback));
+}
+
+const rawMessages = messageFormatsFile.messages as MessageFormat<RawFormatData>[];
+const totalMessages = rawMessages.size();
+export const sendMessageIds = new Map<string, number>();
+export const receiveMessageIds = new Map<string, number>();
+export const messageFormats: FormatData[] = [];
+export const SEND_LIMIT = messageFormatsFile.send_limit;
+export const messageIdFormat = getFormatForCount(totalMessages);
+for (const i of $range(0, totalMessages - 1)) {
+	const rawMessage = rawMessages[i];
+	const messageName = rawMessage.name;
+	if (rawMessage.sender === "luau") {
+		sendMessageIds.set(messageName, i);
+	} else {
+		receiveMessageIds.set(messageName, i);
+		messageListeners[i] = [];
+	}
+	messageFormats.push(transformFormat(rawMessage.data));
+}
+
+export function deepcopy<T>(object: T): T {
 	if (typeIs(object, "table")) {
 		const copyObject = new Map<unknown, unknown>();
 		for (const [k, v] of object as unknown as Map<unknown, unknown>) {
@@ -170,32 +210,33 @@ function deepcopy<T>(object: T): T {
 	}
 }
 
-function getFormatForCount(count: number): Datatype<number> {
-	return [
-		{
-			read: (b: Buffer): number => {
-				return b.read(buffer.readu8, 1);
-			},
-			write: (b: Buffer, value: number) => {
-				b.write(buffer.writeu8, 1, value);
-			},
-		},
-		{
-			read: (b: Buffer): number => {
-				return b.read(buffer.readu16, 2);
-			},
-			write: (b: Buffer, value: number) => {
-				b.write(buffer.writeu16, 2, value);
-			},
-		},
-		{
-			read: (b: Buffer): number => {
-				return b.read(buffer.readu32, 4);
-			},
-			write: (b: Buffer, value: number) => {
-				b.write(buffer.writeu32, 4, value);
-			},
-		},
-	][math.min(math.ceil(math.log(2 * math.max(math.log(count, 256), 1), 2)) - 1, 2)] as Datatype<number>;
+type ReadFunc = (
+	receiveThread: ReceiveMessagesThread,
+	args: defined[],
+	formatData: FormatData,
+	masks: Map<string, boolean>,
+) => void;
+type WriteFunc = (
+	sendThread: SendMessagesThread,
+	args: defined[],
+	argsCount: number,
+	formatData: FormatData,
+	masks: Map<string, boolean>,
+) => number;
+interface Module {
+	read: ReadFunc;
+	write: WriteFunc;
 }
-const messageIdFormat = getFormatForCount(totalMessages);
+
+export const readFuncs = new Map<string, ReadFunc>();
+export const writeFuncs = new Map<string, WriteFunc>();
+export function initialize() {
+	for (const moduleScript of script.Parent!.FindFirstChild("formatTypes")!.GetChildren()) {
+		if (classIs(moduleScript, "ModuleScript")) {
+			const moduleName = moduleScript.Name;
+			const module = require(moduleScript) as Module;
+			readFuncs.set(moduleName, module.read);
+			writeFuncs.set(moduleName, module.write);
+		}
+	}
+}

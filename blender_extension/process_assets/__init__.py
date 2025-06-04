@@ -1,80 +1,44 @@
-import bpy
+import bpy, time
 
-def get_loop_colors(mesh, assigned_materials):
-    material_loop_colors = {}
-    color_attributes = mesh.color_attributes
-    for material_index, material_group in assigned_materials.items():
-        if material_group["color_attribute_name"] != None:
-            color_attribute = color_attributes.get(material_group["color_attribute_name"])
-            if color_attribute:
-                material_loop_colors[material_index] = color_attribute.data
-            else:
-                all_color_attributes = color_attributes.values()
-                material_loop_colors[material_index] = all_color_attributes[0].data if len(all_color_attributes) > 0 else None
+def register(utils):
+    process_mesh = utils.import_module("process_mesh")
+    process_materials = utils.import_module("process_materials")
 
-    return material_loop_colors
+    def get_visible_mesh_objects():
+        objects = []
+        for object in bpy.context.visible_objects:
+            if not (object.id_type == "OBJECT" and object.type == "MESH"):
+                continue
+            objects.append(object)
+        return objects
+    
+    global process_assets
+    def process_assets():
+        overall_start = time.process_time()
+        
+        send_meshes = {}
+        send_images = {}
+        send_objects = {}
 
-def output_socket_is_connected(output_socket):
-    for link in output_socket.links:
-        if link.is_valid and (not link.is_muted) and node_is_connected(link.to_node, link.to_socket):
-            return True
-    return False
+        if bpy.context.mode == "EDIT_MESH":
+            for object in get_visible_mesh_objects():
+                if object.mode == "EDIT":
+                    object.update_from_editmode()
+        depsgraph = bpy.context.evaluated_depsgraph_get()
 
-def node_is_connected(node, input_socket):
-    if type(node) is bpy.types.ShaderNodeOutputMaterial:
-        return node.is_active_output
-            
-    if node.mute:
-        for internal_link in node.internal_links:
-            if internal_link.is_valid and (internal_link.from_socket == input_socket):
-                if output_socket_is_connected(internal_link.to_socket):
-                    return True
-    else:
-        for output_socket in node.outputs:
-            if output_socket_is_connected(output_socket):
-                return True
-    return False
+        for object in get_visible_mesh_objects():
+            object = object.evaluated_get(depsgraph)
+            position, rotation, scale = object.matrix_world.decompose()
+            scale, hashes = process_mesh(object.data, scale, send_meshes, process_materials(object.material_slots, send_images))
+            send_object = (
+                object.name,
+                object.matrix_world.copy().freeze(),
+                scale.freeze(),
+                hashes
+            )
 
-def process_materials(material_slots, send_images):
-    assigned_materials = {}
-    for material_slot in material_slots:
-        material = material_slot.material
-        if material and material.node_tree:
-            color_attribute_name = None
-            image_node = None
-            bsdf_node = None
-            for node in material.node_tree.nodes:
-                match type(node):
-                    case bpy.types.ShaderNodeTexImage:
-                        if output_socket_is_connected(node.outputs.get("Color")) and node.image:
-                            image_node = node
-                    case bpy.types.ShaderNodeVertexColor:
-                        if output_socket_is_connected(node.outputs.get("Color")):
-                            color_attribute_name = node.layer_name
-                    case bpy.types.ShaderNodeBsdfPrincipled:
-                        if output_socket_is_connected(node.outputs.get("BSDF")):
-                            bsdf_node = node
-
-            
-            use_image_transparency = False
-            if image_node and bsdf_node:
-                for link in bsdf_node.inputs.get("Alpha").links:
-                    if link.is_valid and (not link.is_muted) and (link.from_node == image_node):
-                        use_image_transparency = True
-                        break
-
-            assigned_materials[material_slot.slot_index] = {
-                "color_attribute_name": color_attribute_name, 
-                "image_hash": process_image(image_node.image, send_images) if image_node else None,
-                "alpha": bsdf_node.inputs.get("Alpha").default_value if bsdf_node else None,
-                "use_image_transparency": use_image_transparency
-            }
-
-    if len(assigned_materials) == 0:
-        assigned_materials[0] = {
-            "color_attribute_name": None, 
-            "image_hash": None,
-            "alpha": 1,
-            "use_image_transparency": False
-        }
-    return assigned_materials
+            object_hash = hash(send_object)
+            send_objects[object_hash] = send_object
+        
+        server.fire("sendObjects", send_meshes, send_images, send_objects)
+        print("overall", time.process_time() - overall_start)

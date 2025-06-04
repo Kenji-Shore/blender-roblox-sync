@@ -1,21 +1,21 @@
 import * as ProcessFormats from "./processFormats";
 import PauseThread from "./pauseThread";
 
-interface SendMessagesThread extends PauseThread {
+export interface SendMessagesThread extends PauseThread {
 	buffer: buffer[];
 	bufLen: number;
 	buffersQueued: buffer[];
-	argsQueued: unknown[][];
+	argsQueued: defined[][];
 }
 export namespace SendMessagesThread {
 	export function sendMessage(sendThread: SendMessagesThread, messageName: string, ...args: defined[]) {
 		assert(messageName in ProcessFormats.sendMessageIds);
 		const messageId = ProcessFormats.sendMessageIds.get(messageName);
-		args.insert(0, messageId as defined);
+		args.unshift(messageId as defined);
+		sendThread.argsQueued.push(args);
 		PauseThread.unpause(sendThread);
 	}
-	export function writeBuffer(sendThread: SendMessagesThread, data: buffer) {
-		const dataSize = buffer.len(data);
+	export function writeBuffer(sendThread: SendMessagesThread, data: buffer, dataSize: number) {
 		sendThread.bufLen += dataSize;
 		if (sendThread.bufLen <= ProcessFormats.SEND_LIMIT) {
 			sendThread.buffer.push(data);
@@ -37,85 +37,59 @@ export namespace SendMessagesThread {
 			sendThread.bufLen = overflow;
 		}
 	}
+
+	export function parse(
+		sendThread: SendMessagesThread,
+		args: defined[],
+		argsCount: number,
+		formatData: ProcessFormats.FormatData,
+		masks: Map<string, boolean>,
+	): number {
+		if (!("type" in formatData)) {
+			for (const subFormatData of formatData) {
+				argsCount = parse(sendThread, args, argsCount, subFormatData, masks);
+			}
+		} else {
+			argsCount = ProcessFormats.writeFuncs.get(formatData.type)!(sendThread, args, argsCount, formatData, masks);
+		}
+		return argsCount;
+	}
+
+	export function create(): SendMessagesThread {
+		const sendThread: SendMessagesThread = {
+			buffer: [],
+			bufLen: 0,
+			buffersQueued: [],
+			argsQueued: [],
+			stopThread: false,
+		};
+
+		task.spawn(() => {
+			while (!sendThread.stopThread) {
+				if (sendThread.argsQueued.size() === 0) {
+					PauseThread.pause(sendThread);
+				}
+				const args = sendThread.argsQueued.shift()!;
+				const messageId = args[0] as number;
+				const format = ProcessFormats.messageIdFormat;
+				const data = buffer.create(format.size);
+				format.write(data, 0, messageId);
+				writeBuffer(sendThread, data, format.size);
+				const masks = new Map<string, boolean>();
+				parse(sendThread, args, 1, ProcessFormats.messageFormats[messageId], masks);
+
+				const joinedBuffer = buffer.create(sendThread.bufLen);
+				let offset = 0;
+				for (const segment of sendThread.buffer) {
+					buffer.copy(joinedBuffer, offset, segment);
+					offset += buffer.len(segment);
+				}
+				sendThread.buffersQueued.push(joinedBuffer);
+				sendThread.buffer.clear();
+				sendThread.bufLen = 0;
+			}
+		});
+		return sendThread;
+	}
 }
 export default SendMessagesThread;
-
-// export function Fire(messageName: string, ...args: unknown[]) {
-// 	assert(sendMessageIds[messageName]);
-// 	const messageId = sendMessageIds[messageName];
-// 	const rawBuffer = new Buffer();
-
-// 	function parseArgs(formatData: FormatData, args: unknown, passedMasks = new Map<string, boolean>()) {
-// 		const masks = deepcopy(passedMasks);
-// 		let getArg: () => unknown;
-// 		if (typeIs(args, "table")) {
-// 			let argsCount = 0;
-// 			getArg = () => {
-// 				const arg = (args as unknown[])[argsCount];
-// 				argsCount += 1;
-// 				return arg;
-// 			};
-// 		} else {
-// 			getArg = () => {
-// 				return args;
-// 			};
-// 		}
-
-// 		function parse(formatData: FormatData) {
-// 			if (typeIs(formatData, "string")) {
-// 				//is string or number
-// 				(datatypes[formatData].write as WriteBuffer<unknown>)(rawBuffer, getArg());
-// 			} else if ("register_mask" in formatData) {
-// 				const rawRegisterMasks = formatData.register_mask;
-// 				const registerMasks = typeIs(rawRegisterMasks, "table") ? rawRegisterMasks : [rawRegisterMasks];
-// 				const maskCount = registerMasks.size();
-
-// 				let bitmask = 0;
-// 				for (const i of $range(0, maskCount - 1)) {
-// 					const boolValue = getArg() as boolean;
-// 					bitmask <<= 1;
-// 					bitmask += boolValue ? 1 : 0;
-// 					masks.set(registerMasks[i], boolValue);
-// 				}
-// 				getFormatForCount(maskCount).write(rawBuffer, bitmask);
-// 			} else if ("mask" in formatData) {
-// 				const mask = formatData.mask;
-// 				if (masks.get(mask)) {
-// 					parse(formatData.data);
-// 				}
-// 			} else if ("repeat" in formatData) {
-// 				for (const _ of $range(0, formatData.repeat - 1)) {
-// 					parse(formatData.data);
-// 				}
-// 			} else if ("value" in formatData) {
-// 				if (formatData.index) {
-// 					//is dictionary
-// 					const map = getArg() as Map<unknown, unknown>;
-// 					datatypes.u32.write(rawBuffer, map.size());
-// 					for (const [k, v] of map) {
-// 						parseArgs(formatData.index, k, masks);
-// 						parseArgs(formatData.value, v, masks);
-// 					}
-// 				} else {
-// 					//is array
-// 					const array = getArg() as unknown[];
-// 					datatypes.u32.write(rawBuffer, array.size());
-// 					for (const v of array) {
-// 						parseArgs(formatData.value, v, masks);
-// 					}
-// 				}
-// 			} else {
-// 				//is args list
-// 				for (const subData of formatData) {
-// 					parse(subData);
-// 				}
-// 			}
-// 		}
-// 		parse(formatData);
-// 	}
-
-// 	messageIdFormat.write(rawBuffer, messageId);
-// 	parseArgs(messages[messageId].data, args);
-// 	const sendBuffer = rawBuffer.toBuffer();
-// 	sendQueue.push(sendBuffer);
-// }

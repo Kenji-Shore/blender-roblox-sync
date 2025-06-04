@@ -1,14 +1,28 @@
+--!native
 -- Compiled with roblox-ts v3.0.0
--- //!native
--- export function read(b: Buffer): Vector3 {
--- 	const x = b.read(buffer.readf32, 4);
--- 	const y = b.read(buffer.readf32, 4);
--- 	const z = b.read(buffer.readf32, 4);
--- 	return new Vector3(x, y, z);
--- }
--- export function write(b: Buffer, value: Vector3) {
--- 	b.write(buffer.writef32, 4, value.X);
--- 	b.write(buffer.writef32, 4, value.Y);
--- 	b.write(buffer.writef32, 4, value.Z);
--- }
-return nil
+local TS = require(script.Parent.Parent.Parent.include.RuntimeLib)
+local SendMessagesThread = TS.import(script, script.Parent.Parent, "sendMessages").default
+local ReceiveMessagesThread = TS.import(script, script.Parent.Parent, "receiveMessages").default
+local DATA_SIZE = 12
+local function read(receiveThread, args, formatData, masks)
+	local readBuffer, readOffset = ReceiveMessagesThread.readBuffer(receiveThread, DATA_SIZE)
+	local x = buffer.readf32(readBuffer, readOffset)
+	local y = buffer.readf32(readBuffer, readOffset + 4)
+	local z = buffer.readf32(readBuffer, readOffset + 8)
+	local _args = args
+	local _vector3 = Vector3.new(x, y, z)
+	table.insert(_args, _vector3)
+end
+local function write(sendThread, args, argsCount, formatData, masks)
+	local value = args[argsCount + 1]
+	local data = buffer.create(DATA_SIZE)
+	buffer.writef32(data, 0, value.X)
+	buffer.writef32(data, 4, value.Y)
+	buffer.writef32(data, 8, value.Z)
+	SendMessagesThread.writeBuffer(sendThread, data, DATA_SIZE)
+	return argsCount + 1
+end
+return {
+	read = read,
+	write = write,
+}

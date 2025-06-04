@@ -1,39 +1,5 @@
 {
     "send_limit": 20000000,
-    "datatypes": {
-        "u8": {
-            "luau": 1,
-            "python": "B"
-        },
-        "i8": {
-            "luau": 1,
-            "python": "b"
-        },
-        "u16": {
-            "luau": 2,
-            "python": "H"
-        },
-        "i16": {
-            "luau": 2,
-            "python": "h"
-        },
-        "u32": {
-            "luau": 4,
-            "python": "I"
-        },
-        "i32": {
-            "luau": 4,
-            "python": "i"
-        },
-        "f32": {
-            "luau": 4,
-            "python": "f"
-        },
-        "f64": {
-            "luau": 8,
-            "python": "d"
-        }
-    },
     "messages": [
         {
             "name": "sendObjects",

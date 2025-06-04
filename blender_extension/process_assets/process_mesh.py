@@ -46,7 +46,8 @@ def register(utils):
             self.assigned_materials = assigned_materials
             self.material_loop_colors = get_loop_colors(mesh, assigned_materials)
             super(SeparatedMeshes, self).__init__()
-            
+
+    global process_mesh   
     def process_mesh(mesh, scale, send_meshes, assigned_materials):
         vertices = mesh.vertices
         sign_x = 1 if scale.x >= 0 else -1

@@ -1,6 +1,7 @@
 --!native
 -- Compiled with roblox-ts v3.0.0
--- import Server from "./server";
+local TS = require(script.include.RuntimeLib)
+local Server = TS.import(script, script, "Server").default
 -- const toolbar = plugin.CreateToolbar("test");
 -- const button = toolbar.CreateButton("testbutton", "", "");
 -- button.Click.Connect(() => {});
@@ -18,6 +19,6 @@ local objects = {}
 -- 		objects.set(objectHash, Object.create(objectData));
 -- 	}
 -- });
--- plugin.Unloading.Connect(() => {
--- 	Server.Unloading();
--- });
+plugin.Unloading:Connect(function()
+	Server.Unloading()
+end)

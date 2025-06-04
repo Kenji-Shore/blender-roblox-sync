@@ -9,12 +9,20 @@ do
 	_container.pause = pause
 	local function unpause(pauseThread)
 		if pauseThread.thread then
-			local pausedThread = pauseThread.thread
+			local thread = pauseThread.thread
 			pauseThread.thread = nil
-			coroutine.resume(pausedThread)
+			if pauseThread.stopThread then
+				coroutine.close(thread)
+			else
+				coroutine.resume(thread)
+			end
 		end
 	end
 	_container.unpause = unpause
+	local function stop(pauseThread)
+		pauseThread.stopThread = true
+	end
+	_container.stop = stop
 end
 local default = PauseThread
 return {

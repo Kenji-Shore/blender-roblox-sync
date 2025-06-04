@@ -28,6 +28,7 @@ def register(utils):
                     args_count = self.parse(args, args_count, sub_format_data, **masks)
             else:
                 args_count = process_formats.write_funcs[format_data["type"]](self, args, args_count, format_data, **masks)
+            return args_count
 
         def run(self):
             self.buffer = []

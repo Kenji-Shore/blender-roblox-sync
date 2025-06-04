@@ -1,22 +1,40 @@
-// function getDatatypes(): Datatypes {
-// 	const datatypes: Partial<Datatypes> = {};
-// 	for (const [formatData, rawData] of pairs(
-// 		messageFormatsFile.datatypes as Record<NumberFormatKeys, { luau: number; python: string }>,
-// 	)) {
-// 		const readFunc = buffer["read" + formatData];
-// 		const writeFunc = buffer["write" + formatData];
-// 		const byteSize: number = rawData.luau;
+//!native
+import type * as ProcessFormats from "../processFormats";
+import SendMessagesThread from "../sendMessages";
+import ReceiveMessagesThread from "../receiveMessages";
 
-// 		datatypes[formatData] = {
-// 			read: (b: Buffer): number => {
-// 				return b.read(readFunc, byteSize);
-// 			},
-// 			write: (b: Buffer, value: number) => {
-// 				b.write(writeFunc, byteSize, value);
-// 			},
-// 		};
-// 	}
-
-// 	return datatypes;
-// }
-// const datatypes = getDatatypes();
+interface FormatFormatData {
+	type: "format";
+	totalSize: number;
+	format: ProcessFormats.Values<ProcessFormats.BufferFunctions>[];
+}
+export function read(
+	receiveThread: ReceiveMessagesThread,
+	args: defined[],
+	formatData: FormatFormatData,
+	masks: Map<string, boolean>,
+) {
+	const [readBuffer, readOffset] = ReceiveMessagesThread.readBuffer(receiveThread, formatData.totalSize);
+	let offset = 0;
+	for (const format of formatData.format) {
+		args.push(format.read(readBuffer, readOffset + offset));
+		offset += format.size;
+	}
+}
+export function write(
+	sendThread: SendMessagesThread,
+	args: defined[],
+	argsCount: number,
+	formatData: FormatFormatData,
+	masks: Map<string, boolean>,
+): number {
+	const data = buffer.create(formatData.totalSize);
+	let offset = 0;
+	for (const format of formatData.format) {
+		format.write(data, offset, args[argsCount] as number);
+		argsCount += 1;
+		offset += format.size;
+	}
+	SendMessagesThread.writeBuffer(sendThread, data, formatData.totalSize);
+	return argsCount;
+}

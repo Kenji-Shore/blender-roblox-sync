@@ -1,88 +1,96 @@
 --!native
 -- Compiled with roblox-ts v3.0.0
--- const signalReceiver = new ReceiveSignalThread();
--- const sendQueue: buffer[] = [];
--- let lastClock = os.clock();
--- const rateLimit = 60 / 1800;
--- let retryString: string | undefined;
--- const connection = RunService.Heartbeat.Connect(() => {
--- 	const newClock = os.clock();
--- 	const delta = newClock - lastClock;
--- 	if (delta >= rateLimit) {
--- 		lastClock = newClock - (delta - rateLimit);
--- 		let response: RequestAsyncResponse | undefined = undefined;
--- 		let sendString: string;
--- 		if (retryString) {
--- 			sendString = retryString;
--- 		} else {
--- 			const sendStrings: string[] = [];
--- 			let queueSize = sendQueue.size();
--- 			if (queueSize > 0) {
--- 				let sendSize = 0;
--- 				while (queueSize > 0 && sendSize < sendLimit) {
--- 					const buf = sendQueue.shift()!;
--- 					const bufferSize = buffer.len(buf);
--- 					sendSize += bufferSize;
--- 					queueSize -= 1;
--- 					if (sendSize <= sendLimit) {
--- 						sendStrings.push(buffer.tostring(buf));
--- 					} else {
--- 						const overflow = sendSize - sendLimit;
--- 						sendStrings.push(buffer.readstring(buf, 0, overflow));
--- 						const remainingBuffer = buffer.create(bufferSize - overflow);
--- 						buffer.copy(remainingBuffer, 0, buf, overflow);
--- 						sendQueue.insert(0, remainingBuffer);
--- 					}
--- 				}
--- 			}
--- 			sendString = sendStrings.join("");
--- 		}
--- 		try {
--- 			response = HttpService.RequestAsync({
--- 				Url: "http://localhost:50520",
--- 				Method: "POST",
--- 				Body: sendString,
--- 			});
--- 		} catch (error) {
--- 			retryString = sendString;
--- 			print(error);
--- 			if (error === "Number of requests exceeded limit") {
--- 				connection.Disconnect();
--- 			}
--- 		} finally {
--- 			if (response) {
--- 				retryString = undefined;
--- 				if (response.Success) {
--- 					const response_buffer = buffer.fromstring(response.Body);
--- 					if (buffer.len(response_buffer) > 0) {
--- 						signalReceiver.receiveSignal(response_buffer);
--- 					}
--- 				} else {
--- 					print("Fail", response.StatusMessage);
--- 				}
--- 			}
--- 		}
--- 	}
--- });
--- export namespace Server {
--- 	export function Hook(messageName: string, callback: Callback) {
--- 		assert(messageName in receiveMessageIds);
--- 		const messageId = receiveMessageIds[messageName];
--- 		messageListeners[messageId].push(callback);
--- 	}
--- 	export function Unhook(messageName: string, callback: Callback) {
--- 		assert(messageName in receiveMessageIds);
--- 		const messageId = receiveMessageIds[messageName];
--- 		const listeners = messageListeners[messageId];
--- 		const index = listeners.indexOf(callback);
--- 		if (index > -1) {
--- 			listeners.remove(index);
--- 		}
--- 	}
--- 	export function Unloading() {
--- 		connection.Disconnect();
--- 		signalReceiver.stop();
--- 	}
--- }
--- export default Server;
-return nil
+local TS = require(script.Parent.include.RuntimeLib)
+local HttpService = TS.import(script, script.Parent, "include", "node_modules", "@rbxts", "services").HttpService
+local RunService = TS.import(script, script.Parent, "include", "node_modules", "@rbxts", "services").RunService
+local ProcessFormats = TS.import(script, script, "processFormats")
+local SendMessagesThread = TS.import(script, script, "sendMessages").default
+local ReceiveMessagesThread = TS.import(script, script, "receiveMessages").default
+local PauseThread = TS.import(script, script, "pauseThread").default
+local sendThread = SendMessagesThread.create()
+local receiveThread = ReceiveMessagesThread.create()
+ProcessFormats.initialize()
+local lastClock = os.clock()
+local rateLimit = 60 / 1800
+local retryString
+local connection
+connection = RunService.Heartbeat:Connect(function()
+	local newClock = os.clock()
+	local delta = newClock - lastClock
+	if delta >= rateLimit then
+		lastClock = newClock - (delta - rateLimit)
+		local response = nil
+		local sendString
+		if retryString ~= "" and retryString then
+			sendString = retryString
+		elseif #sendThread.buffersQueued > 0 then
+			local sendBuffer = table.remove(sendThread.buffersQueued, 1)
+			sendString = buffer.tostring(sendBuffer)
+		else
+			sendString = ""
+		end
+		TS.try(function()
+			response = HttpService:RequestAsync({
+				Url = "http://localhost:50520",
+				Method = "POST",
+				Body = sendString,
+			})
+		end, function(error)
+			retryString = sendString
+			print(error)
+			if error == "Number of requests exceeded limit" then
+				connection:Disconnect()
+			end
+		end, function()
+			if response then
+				retryString = nil
+				if response.Success then
+					local responseBuffer = buffer.fromstring(response.Body)
+					if buffer.len(responseBuffer) > 0 then
+						ReceiveMessagesThread.receiveMessage(receiveThread, responseBuffer)
+					end
+				else
+					print("Fail", response.StatusMessage)
+				end
+			end
+		end)
+	end
+end)
+local Server = {}
+do
+	local _container = Server
+	local function hook(messageName, callback)
+		local _arg0 = ProcessFormats.receiveMessageIds[messageName] ~= nil
+		assert(_arg0)
+		local _receiveMessageIds = ProcessFormats.receiveMessageIds
+		local _messageName = messageName
+		local messageId = _receiveMessageIds[_messageName]
+		ProcessFormats.listenMessage(messageId, callback)
+	end
+	_container.hook = hook
+	local function unhook(messageName, callback)
+		local _arg0 = ProcessFormats.receiveMessageIds[messageName] ~= nil
+		assert(_arg0)
+		local _receiveMessageIds = ProcessFormats.receiveMessageIds
+		local _messageName = messageName
+		local messageId = _receiveMessageIds[_messageName]
+		ProcessFormats.unlistenMessage(messageId, callback)
+	end
+	_container.unhook = unhook
+	local function fire(messageName, ...)
+		local args = { ... }
+		SendMessagesThread.sendMessage(sendThread, messageName, unpack(args))
+	end
+	_container.fire = fire
+	local function Unloading()
+		connection:Disconnect()
+		PauseThread.stop(sendThread)
+		PauseThread.stop(receiveThread)
+	end
+	_container.Unloading = Unloading
+end
+local default = Server
+return {
+	Server = Server,
+	default = default,
+}

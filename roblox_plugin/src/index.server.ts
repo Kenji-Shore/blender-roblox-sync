@@ -1,6 +1,6 @@
 //!native
 
-// import Server from "./server";
+import Server from "./Server";
 import { MeshAsset } from "./MeshAsset";
 import { ImageAsset } from "./ImageAsset";
 import { Workspace } from "@rbxts/services";
@@ -32,6 +32,6 @@ const objects = new Map<string, object>();
 // 	}
 // });
 
-// plugin.Unloading.Connect(() => {
-// 	Server.Unloading();
-// });
+plugin.Unloading.Connect(() => {
+	Server.Unloading();
+});

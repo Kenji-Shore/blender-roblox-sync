@@ -13,11 +13,13 @@ do
 		local _messageName = messageName
 		local messageId = _sendMessageIds[_messageName]
 		table.insert(args, 1, messageId)
+		local _argsQueued = sendThread.argsQueued
+		local _args = args
+		table.insert(_argsQueued, _args)
 		PauseThread.unpause(sendThread)
 	end
 	_container.sendMessage = sendMessage
-	local function writeBuffer(sendThread, data)
-		local dataSize = buffer.len(data)
+	local function writeBuffer(sendThread, data, dataSize)
 		sendThread.bufLen += dataSize
 		if sendThread.bufLen <= ProcessFormats.SEND_LIMIT then
 			local _buffer = sendThread.buffer
@@ -43,82 +45,58 @@ do
 		end
 	end
 	_container.writeBuffer = writeBuffer
+	local function parse(sendThread, args, argsCount, formatData, masks)
+		if not (formatData.type ~= nil) then
+			for _, subFormatData in formatData do
+				argsCount = parse(sendThread, args, argsCount, subFormatData, masks)
+			end
+		else
+			local _writeFuncs = ProcessFormats.writeFuncs
+			local _type = formatData.type
+			argsCount = _writeFuncs[_type](sendThread, args, argsCount, formatData, masks)
+		end
+		return argsCount
+	end
+	_container.parse = parse
+	local function create()
+		local sendThread = {
+			buffer = {},
+			bufLen = 0,
+			buffersQueued = {},
+			argsQueued = {},
+			stopThread = false,
+		}
+		task.spawn(function()
+			while not sendThread.stopThread do
+				if #sendThread.argsQueued == 0 then
+					PauseThread.pause(sendThread)
+				end
+				local args = table.remove(sendThread.argsQueued, 1)
+				local messageId = args[1]
+				local format = ProcessFormats.messageIdFormat
+				local data = buffer.create(format.size)
+				format.write(data, 0, messageId)
+				writeBuffer(sendThread, data, format.size)
+				local masks = {}
+				parse(sendThread, args, 1, ProcessFormats.messageFormats[messageId + 1], masks)
+				local joinedBuffer = buffer.create(sendThread.bufLen)
+				local offset = 0
+				for _, segment in sendThread.buffer do
+					buffer.copy(joinedBuffer, offset, segment)
+					offset += buffer.len(segment)
+				end
+				local _exp = sendThread.buffersQueued
+				table.insert(_exp, joinedBuffer)
+				table.clear(sendThread.buffer)
+				sendThread.bufLen = 0
+			end
+		end)
+		return sendThread
+	end
+	_container.create = create
 end
--- export function Fire(messageName: string, ...args: unknown[]) {
--- 	assert(sendMessageIds[messageName]);
--- 	const messageId = sendMessageIds[messageName];
--- 	const rawBuffer = new Buffer();
--- 	function parseArgs(formatData: FormatData, args: unknown, passedMasks = new Map<string, boolean>()) {
--- 		const masks = deepcopy(passedMasks);
--- 		let getArg: () => unknown;
--- 		if (typeIs(args, "table")) {
--- 			let argsCount = 0;
--- 			getArg = () => {
--- 				const arg = (args as unknown[])[argsCount];
--- 				argsCount += 1;
--- 				return arg;
--- 			};
--- 		} else {
--- 			getArg = () => {
--- 				return args;
--- 			};
--- 		}
--- 		function parse(formatData: FormatData) {
--- 			if (typeIs(formatData, "string")) {
--- 				//is string or number
--- 				(datatypes[formatData].write as WriteBuffer<unknown>)(rawBuffer, getArg());
--- 			} else if ("register_mask" in formatData) {
--- 				const rawRegisterMasks = formatData.register_mask;
--- 				const registerMasks = typeIs(rawRegisterMasks, "table") ? rawRegisterMasks : [rawRegisterMasks];
--- 				const maskCount = registerMasks.size();
--- 				let bitmask = 0;
--- 				for (const i of $range(0, maskCount - 1)) {
--- 					const boolValue = getArg() as boolean;
--- 					bitmask <<= 1;
--- 					bitmask += boolValue ? 1 : 0;
--- 					masks.set(registerMasks[i], boolValue);
--- 				}
--- 				getFormatForCount(maskCount).write(rawBuffer, bitmask);
--- 			} else if ("mask" in formatData) {
--- 				const mask = formatData.mask;
--- 				if (masks.get(mask)) {
--- 					parse(formatData.data);
--- 				}
--- 			} else if ("repeat" in formatData) {
--- 				for (const _ of $range(0, formatData.repeat - 1)) {
--- 					parse(formatData.data);
--- 				}
--- 			} else if ("value" in formatData) {
--- 				if (formatData.index) {
--- 					//is dictionary
--- 					const map = getArg() as Map<unknown, unknown>;
--- 					datatypes.u32.write(rawBuffer, map.size());
--- 					for (const [k, v] of map) {
--- 						parseArgs(formatData.index, k, masks);
--- 						parseArgs(formatData.value, v, masks);
--- 					}
--- 				} else {
--- 					//is array
--- 					const array = getArg() as unknown[];
--- 					datatypes.u32.write(rawBuffer, array.size());
--- 					for (const v of array) {
--- 						parseArgs(formatData.value, v, masks);
--- 					}
--- 				}
--- 			} else {
--- 				//is args list
--- 				for (const subData of formatData) {
--- 					parse(subData);
--- 				}
--- 			}
--- 		}
--- 		parse(formatData);
--- 	}
--- 	messageIdFormat.write(rawBuffer, messageId);
--- 	parseArgs(messages[messageId].data, args);
--- 	const sendBuffer = rawBuffer.toBuffer();
--- 	sendQueue.push(sendBuffer);
--- }
+local default = SendMessagesThread
 return {
 	SendMessagesThread = SendMessagesThread,
+	default = default,
 }

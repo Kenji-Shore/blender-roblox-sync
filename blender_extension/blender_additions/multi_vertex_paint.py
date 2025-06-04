@@ -108,13 +108,13 @@ def register(utils):
                 bpy.ops.object.mode_set(mode=object_mode)
                 bpy.ops.ed.undo_push()
             
-    def exit_vertex_paint(new_mode):
+    def exit_vertex_paint(new_mode, override_mode=None):
         nonlocal active_object_name
         nonlocal sculpt_object_name
         with utils.pause_updates():
             if sculpt_object_name:
                 sculpt_object = bpy.data.objects.get(sculpt_object_name)
-                object_mode = bpy.context.active_object.mode
+                object_mode = override_mode or bpy.context.active_object.mode
                 if sculpt_object:
                     for object in bpy.context.selected_objects:
                         object.select_set(False)
@@ -185,9 +185,7 @@ def register(utils):
             add_vertex_color(mesh)
     def save_pre(file):
         if sculpt_object_name and bpy.data.objects.get(sculpt_object_name):
-            with utils.pause_updates():
-                bpy.ops.object.mode_set(mode="OBJECT")
-                exit_vertex_paint(None)
+            exit_vertex_paint(None, "OBJECT")
     def add_vertex_colors():
         for object in bpy.context.selected_editable_objects:
             if object.type == "MESH":
@@ -204,8 +202,7 @@ def register(utils):
         
 
     def unregister():
-        bpy.ops.object.mode_set(mode="OBJECT")
-        exit_vertex_paint(None)
+        exit_vertex_paint(None, "OBJECT")
     return {
         "classes": (VIEW3D_PT_sculpt_dyntopo, VIEW3D_PT_sculpt_voxel_remesh,),
         "listeners": (

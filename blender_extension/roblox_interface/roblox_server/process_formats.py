@@ -1,6 +1,16 @@
 import struct, json, math, pathlib
 
 def register(utils):
+    DATA_TYPES = {
+        "u8": "B",
+        "i8": "b",
+        "u16": "H",
+        "i16": "h",
+        "u32": "I",
+        "i32": "i",
+        "f32": "f",
+        "f64": "d",
+    }
     
     def transform_format(format_data, required_type = None):
         parsed_type = type(format_data)
@@ -39,7 +49,7 @@ def register(utils):
             while True:
                 raw = format_data[list_index] if list_index < list_len else None
                 is_str = type(raw) is str
-                datatype = datatypes[raw]["python"] if is_str and (raw in datatypes) else None
+                datatype = DATA_TYPES[raw] if is_str and (raw in DATA_TYPES) else None
                 if datatype == stack_datatype:
                     stack_count += 1
                 else:
@@ -97,7 +107,6 @@ def register(utils):
     with pathlib.Path(__file__).parent.joinpath("message_formats.json").open() as message_formats_file:
         file_json = json.load(message_formats_file)
         messages = file_json["messages"]
-        datatypes = file_json["datatypes"]
         
         total_messages = len(messages)
         for i in range(total_messages):

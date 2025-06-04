@@ -1,179 +1,204 @@
 -- Compiled with roblox-ts v3.0.0
 local TS = require(script.Parent.Parent.include.RuntimeLib)
-local ReceiveMessagesThread = TS.import(script, script.Parent, "receiveMessages").default
+local messageFormatsFile = TS.import(script, script.Parent, "message_formats")
+local DATATYPES = {
+	u8 = 1,
+	i8 = 1,
+	u16 = 2,
+	i16 = 2,
+	u32 = 4,
+	i32 = 4,
+	f32 = 4,
+	f64 = 8,
+}
+local function getFormatForCount(count)
+	return ({ {
+		size = 1,
+		read = buffer.readu8,
+		write = buffer.writeu8,
+	}, {
+		size = 2,
+		read = buffer.readu16,
+		write = buffer.writeu16,
+	}, {
+		size = 4,
+		read = buffer.readu32,
+		write = buffer.writeu32,
+	} })[math.min(math.ceil(math.log(2 * math.max(math.log(count, 256), 1), 2)) - 1, 2) + 1]
+end
+local function transformFormat(rawFormatData, requiredType)
+	local _condition = not requiredType
+	if not _condition then
+		local _rawFormatData = rawFormatData
+		local _requiredType = requiredType
+		_condition = typeof(_rawFormatData) == _requiredType
+	end
+	assert(_condition)
+	local _rawFormatData = rawFormatData
+	if type(_rawFormatData) == "table" then
+		if rawFormatData.value ~= nil then
+			--is array or dict
+			local value = transformFormat(rawFormatData.value)
+			if rawFormatData.index ~= nil then
+				return {
+					type = "dict",
+					index = transformFormat(rawFormatData.index, "string"),
+					value = value,
+				}
+			else
+				return {
+					type = "array",
+					value = value,
+				}
+			end
+		elseif rawFormatData.data ~= nil then
+			local data = transformFormat(rawFormatData.data)
+			if rawFormatData.mask ~= nil then
+				return {
+					type = "mask",
+					mask = rawFormatData.mask,
+					data = data,
+				}
+			elseif rawFormatData["repeat"] ~= nil then
+				return {
+					type = "repeat",
+					["repeat"] = rawFormatData["repeat"],
+					data = data,
+				}
+			elseif rawFormatData.register_mask ~= nil then
+				local raw_register_mask = rawFormatData.register_mask
+				local register_mask = if type(raw_register_mask) == "table" then raw_register_mask else { raw_register_mask }
+				return {
+					type = "register_mask",
+					register_mask = register_mask,
+					count_format = getFormatForCount(#register_mask),
+					data = data,
+				}
+			end
+		end
+	end
+	local _rawFormatData_1 = rawFormatData
+	if not (type(_rawFormatData_1) == "table") then
+		rawFormatData = { rawFormatData }
+	end
+	local formatData = {}
+	local mergeFormats = {}
+	local totalSize = 0
+	local function writeFormat()
+		if #mergeFormats > 0 then
+			local _arg0 = {
+				type = "format",
+				totalSize = totalSize,
+				format = mergeFormats,
+			}
+			table.insert(formatData, _arg0)
+			mergeFormats = {}
+			totalSize = 0
+		end
+	end
+	for _, raw in rawFormatData do
+		local isStr = type(raw) == "string"
+		if isStr and DATATYPES[raw] ~= nil then
+			local size = DATATYPES[raw]
+			totalSize += size
+			local _mergeFormats = mergeFormats
+			local _arg0 = {
+				size = size,
+				read = buffer[`read{raw}`],
+				write = buffer[`write{raw}`],
+			}
+			table.insert(_mergeFormats, _arg0)
+		else
+			writeFormat()
+			if isStr then
+				local _arg0 = {
+					type = raw,
+				}
+				table.insert(formatData, _arg0)
+			else
+				local _arg0 = transformFormat(raw)
+				table.insert(formatData, _arg0)
+			end
+		end
+	end
+	writeFormat()
+	if #formatData == 1 then
+		return formatData[1]
+	else
+		return formatData
+	end
+end
+local messageListeners = {}
+local function listenMessage(messageId, callback)
+	local _exp = messageListeners[messageId]
+	local _callback = callback
+	table.insert(_exp, _callback)
+end
+local function unlistenMessage(messageId, callback)
+	local _exp = messageListeners[messageId]
+	local _exp_1 = messageListeners[messageId]
+	local _callback = callback
+	local _arg0 = (table.find(_exp_1, _callback) or 0) - 1
+	table.remove(_exp, _arg0 + 1)
+end
+local rawMessages = messageFormatsFile.messages
+local totalMessages = #rawMessages
 local sendMessageIds = {}
-local SEND_LIMIT = 10
-ReceiveMessagesThread.test()
--- type FormatTypes =
--- type NumberFormatKeys = keyof typeof messageFormatsFile.datatypes;
--- type Formats = {
--- 	str: string;
--- 	pos: Vector3;
--- 	pos2d: Vector2;
--- 	cf: CFrame;
--- 	vec: Vector3;
--- 	unitvec: Vector3;
--- 	hash: string;
--- 	col: Color3;
--- 	buf: buffer;
--- } & Record<NumberFormatKeys, number>;
--- type FormatKeys = keyof Formats;
--- type FormatData =
--- 	| FormatKeys
--- 	| { index: string | undefined; value: FormatData }
--- 	| { register_mask: string | string[]; data: FormatData }
--- 	| { mask: string; data: FormatData }
--- 	| { repeat: number; data: FormatData }
--- 	| FormatData[];
--- function transformFormat(formatData: unknown, requiredType?: keyof CheckableTypes) {
--- 	assert(!requiredType || typeIs(formatData, requiredType));
--- 	if (typeIs(formatData, "table")) {
--- 		if ("value" in formatData) { //is array or dict
--- 			if ("index" in formatData) {
--- 				formatData["index"] = transformFormat(formatData["index"], "string");
--- 				formatData.set("type", "dict");
--- 			} else {
--- 				formatData["type"] = "array"
--- 			}
--- 			formatData["value"] = transformFormat(formatData["value"])
--- 		} else if ("data" in formatData) { //is masked data or repeated data
--- 			formatData["data"] = transformFormat(formatData["data"])
--- 			if "mask" in formatData:
--- 				formatData["type"] = "mask"
--- 			elif "repeat" in formatData:
--- 				formatData["type"] = "repeat"
--- 			elif "register_mask" in formatData:
--- 				register_mask = formatData["register_mask"]
--- 				formatData["register_mask"] = tuple(register_mask) if type(register_mask) is list else (register_mask,)
--- 				formatData["count_format"] = get_format_for_count(len(formatData["register_mask"]))
--- 				formatData["type"] = "register_mask"
--- 		}
--- 	} else {
--- 	}
--- 	else:
--- 		if parsed_type is str:
--- 			formatData = [formatData]
--- 		stack_datatype = None
--- 		stack_count = 0
--- 		merge_str = ""
--- 		merge_count = 0
--- 		list_len = len(formatData)
--- 		list_index = 0
--- 		while True:
--- 			raw = formatData[list_index] if list_index < list_len else None
--- 			is_str = type(raw) is str
--- 			datatype = datatypes[raw]["python"] if is_str and (raw in datatypes) else None
--- 			if datatype == stack_datatype:
--- 				stack_count += 1
--- 			else:
--- 				if stack_datatype:
--- 					merge_str += (str(stack_count) + stack_datatype) if stack_count > 1 else stack_datatype
--- 					merge_count += stack_count
--- 				stack_datatype = datatype
--- 				stack_count = 1
--- 			if datatype:
--- 				formatData.pop(list_index)
--- 				list_len -= 1
--- 			else:
--- 				if merge_str != "":
--- 					formatData.insert(list_index, {
--- 						"count": merge_count,
--- 						"format": struct.Struct("<" + merge_str),
--- 						"type": "format"
--- 					})
--- 					merge_str = ""
--- 					merge_count = 0
--- 					list_len += 1
--- 					list_index += 1
--- 				if raw:
--- 					formatData[list_index] = {"type": raw} if is_str else transform_format(raw)
--- 				list_index += 1
--- 			if not raw:
--- 				break
--- 		if list_len == 1:
--- 			formatData = formatData[0]
--- 	return formatData
--- }
--- type UnionParam<Func, Param> = Param extends unknown[]
--- 	? (...args: [...Parameters<Func>, ...Param]) => ReturnType<Func>
--- 	: never;
--- type OptionalParam<Func, Param> = UnionParam<Func, Param | []>;
--- type ReadFunc<T> = OptionalParam<(b: buffer, offset: number) => T, [count: number]>;
--- type WriteFunc<T> = OptionalParam<(b: buffer, offset: number, value: T) => void, [count: number]>;
--- type ReadBuffer<T> = (b: Buffer) => T;
--- type WriteBuffer<T> = (b: Buffer, value: T) => void;
--- interface Datatype<T> {
--- 	read: ReadBuffer<T>;
--- 	write: WriteBuffer<T>;
--- }
--- type ReadBufferKeys = `read${NumberFormatKeys}`;
--- type WriteBufferKeys = `write${NumberFormatKeys}`;
--- type Datatypes = {
--- 	[Key in FormatKeys]: Datatype<Formats[Key]>;
--- };
--- interface MessageFormat {
--- 	name: string;
--- 	sender: "python" | "luau";
--- 	data: FormatData;
--- }
--- type Callback = (...args: unknown[]) => void;
--- const sendMessageIds: Record<string, number> = {};
--- const receiveMessageIds: Record<string, number> = {};
--- const messageListeners: Record<number, Callback[]> = {};
--- const sendLimit = messageFormatsFile.send_limit;
--- const messages = messageFormatsFile.messages as MessageFormat[];
--- const totalMessages = messages.size();
--- for (const i of $range(0, totalMessages - 1)) {
--- 	const message: MessageFormat = messages[i];
--- 	const messageName = message.name;
--- 	if (message.sender === "luau") {
--- 		sendMessageIds[messageName] = i;
--- 	} else {
--- 		receiveMessageIds[messageName] = i;
--- 		messageListeners[i] = [];
--- 	}
--- }
--- function deepcopy<T>(object: T): T {
--- 	if (typeIs(object, "table")) {
--- 		const copyObject = new Map<unknown, unknown>();
--- 		for (const [k, v] of object as unknown as Map<unknown, unknown>) {
--- 			copyObject.set(k, deepcopy(v));
--- 		}
--- 		return copyObject as T;
--- 	} else {
--- 		return object;
--- 	}
--- }
--- function getFormatForCount(count: number): Datatype<number> {
--- 	return [
--- 		{
--- 			read: (b: Buffer): number => {
--- 				return b.read(buffer.readu8, 1);
--- 			},
--- 			write: (b: Buffer, value: number) => {
--- 				b.write(buffer.writeu8, 1, value);
--- 			},
--- 		},
--- 		{
--- 			read: (b: Buffer): number => {
--- 				return b.read(buffer.readu16, 2);
--- 			},
--- 			write: (b: Buffer, value: number) => {
--- 				b.write(buffer.writeu16, 2, value);
--- 			},
--- 		},
--- 		{
--- 			read: (b: Buffer): number => {
--- 				return b.read(buffer.readu32, 4);
--- 			},
--- 			write: (b: Buffer, value: number) => {
--- 				b.write(buffer.writeu32, 4, value);
--- 			},
--- 		},
--- 	][math.min(math.ceil(math.log(2 * math.max(math.log(count, 256), 1), 2)) - 1, 2)] as Datatype<number>;
--- }
--- const messageIdFormat = getFormatForCount(totalMessages);
+local receiveMessageIds = {}
+local messageFormats = {}
+local SEND_LIMIT = messageFormatsFile.send_limit
+local messageIdFormat = getFormatForCount(totalMessages)
+for i = 0, totalMessages - 1 do
+	local rawMessage = rawMessages[i + 1]
+	local messageName = rawMessage.name
+	if rawMessage.sender == "luau" then
+		sendMessageIds[messageName] = i
+	else
+		receiveMessageIds[messageName] = i
+		messageListeners[i] = {}
+	end
+	local _arg0 = transformFormat(rawMessage.data)
+	table.insert(messageFormats, _arg0)
+end
+local function deepcopy(object)
+	local _object = object
+	if type(_object) == "table" then
+		local copyObject = {}
+		for k, v in object do
+			local _arg1 = deepcopy(v)
+			copyObject[k] = _arg1
+		end
+		return copyObject
+	else
+		return object
+	end
+end
+local readFuncs = {}
+local writeFuncs = {}
+local function initialize()
+	for _, moduleScript in script.Parent:FindFirstChild("formatTypes"):GetChildren() do
+		if moduleScript.ClassName == "ModuleScript" then
+			local moduleName = moduleScript.Name
+			local module = require(moduleScript)
+			local _read = module.read
+			readFuncs[moduleName] = _read
+			local _write = module.write
+			writeFuncs[moduleName] = _write
+		end
+	end
+end
 return {
+	getFormatForCount = getFormatForCount,
+	listenMessage = listenMessage,
+	unlistenMessage = unlistenMessage,
+	deepcopy = deepcopy,
+	initialize = initialize,
+	messageListeners = messageListeners,
 	sendMessageIds = sendMessageIds,
+	receiveMessageIds = receiveMessageIds,
+	messageFormats = messageFormats,
 	SEND_LIMIT = SEND_LIMIT,
+	messageIdFormat = messageIdFormat,
+	readFuncs = readFuncs,
+	writeFuncs = writeFuncs,
 }

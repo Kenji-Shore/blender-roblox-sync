@@ -1,5 +1,6 @@
 export interface PauseThread {
 	thread?: thread;
+	stopThread: boolean;
 }
 export namespace PauseThread {
 	export function pause(pauseThread: PauseThread) {
@@ -8,10 +9,17 @@ export namespace PauseThread {
 	}
 	export function unpause(pauseThread: PauseThread) {
 		if (pauseThread.thread) {
-			const pausedThread = pauseThread.thread;
+			const thread = pauseThread.thread;
 			pauseThread.thread = undefined;
-			coroutine.resume(pausedThread);
+			if (pauseThread.stopThread) {
+				coroutine.close(thread);
+			} else {
+				coroutine.resume(thread);
+			}
 		}
+	}
+	export function stop(pauseThread: PauseThread) {
+		pauseThread.stopThread = true;
 	}
 }
 export default PauseThread;
