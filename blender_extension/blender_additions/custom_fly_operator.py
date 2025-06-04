@@ -1,4 +1,4 @@
-import bpy, mathutils, time
+import bpy, mathutils, time, math
 
 def register(utils):
     
@@ -11,15 +11,23 @@ def register(utils):
         "E": mathutils.Vector((0, 1, 0)),
     }
 
+    OFFSET = 0.1
+
     fly_running = False
     fly_handle_3d = None
     fly_timer = None
+    fly_cursor = None
     fly_original_distance = None
+    fly_mouse_pos = None
+    region_3d = None
     def stop_fly():
         nonlocal fly_running
         nonlocal fly_handle_3d
         nonlocal fly_timer
+        nonlocal fly_cursor
         nonlocal fly_original_distance
+        nonlocal fly_mouse_pos
+        nonlocal region_3d
 
         fly_running = False
         if fly_handle_3d:
@@ -28,23 +36,30 @@ def register(utils):
         if fly_timer:
             bpy.context.window_manager.event_timer_remove(fly_timer)
             fly_timer = None
-        
-        if fly_original_distance:
-            region_3d = bpy.context.space_data.region_3d
+        if fly_cursor:
+            bpy.context.window_manager.draw_cursor_remove(fly_cursor)
+            fly_cursor = None
+
+        if region_3d:
             look_vec = region_3d.view_rotation @ mathutils.Vector((0, 0, -1))
             region_3d.view_location += look_vec * fly_original_distance
-            region_3d.view_distance = fly_original_distance
+            region_3d.view_distance = fly_original_distance + OFFSET
+
+            bpy.context.window.cursor_warp(*fly_mouse_pos)
+            bpy.context.window.cursor_modal_restore()
+            region_3d = None
             fly_original_distance = None
+            fly_mouse_pos = None
         
     def draw_callback_3d(self, context):
         new_time = time.process_time()
         delta_time = new_time - self.last_time
         self.last_time = new_time
 
-        delta_x = self.mouse_x - self.last_mouse_x
-        delta_y = self.mouse_y - self.last_mouse_y
-        self.last_mouse_x = self.mouse_x
-        self.last_mouse_y = self.mouse_y
+        delta_x = self.mouse_delta_x
+        delta_y = self.mouse_delta_y
+        self.mouse_delta_x = 0
+        self.mouse_delta_y = 0
 
         region_3d = context.space_data.region_3d
         fly_vec = mathutils.Vector()
@@ -52,7 +67,7 @@ def register(utils):
             if key in fly_directions:
                 fly_vec += fly_directions[key]
         rot = region_3d.view_rotation        
-        region_3d.view_location += (rot @ fly_vec) * 40 * (0.3 if "LEFT_SHIFT" in self.active_keys else 1) * delta_time
+        region_3d.view_location += (rot @ fly_vec) * 40 * (0.3 if "LEFT_SHIFT" in self.active_keys else 1) * delta_time * self.fly_speed
 
         if "RIGHTMOUSE" in self.active_keys:
             x_delta = 2000 * (delta_x / context.area.width) * delta_time
@@ -68,9 +83,9 @@ def register(utils):
     class VIEW3D_OT_custom_fly(bpy.types.Operator):
         bl_idname = "view3d.custom_fly"
         bl_label = "Custom Fly Operator"
-        bl_options = {'REGISTER'}
+        bl_options = {"REGISTER", "GRAB_CURSOR", "BLOCKING"}
 
-        my_float: bpy.props.FloatProperty(name="Some Floating Point")
+        fly_speed: bpy.props.FloatProperty(name="Some Floating Point", default=1.0)
 
         def modal(self, context, event):
             if (not fly_running) or (context.space_data.type != "VIEW_3D") or (event.type == "SPACE" and event.value == "PRESS"):
@@ -86,15 +101,19 @@ def register(utils):
                 if key in self.active_keys:
                     self.active_keys.remove(key)
 
-            self.mouse_x = event.mouse_x
-            self.mouse_y = event.mouse_y
+            if key == "MOUSEMOVE":
+                self.mouse_delta_x += event.mouse_x - event.mouse_prev_x
+                self.mouse_delta_y += event.mouse_y - event.mouse_prev_y
             return {'RUNNING_MODAL'}
 
         def invoke(self, context, event):
             nonlocal fly_running
             nonlocal fly_handle_3d
             nonlocal fly_timer
+            nonlocal fly_cursor
             nonlocal fly_original_distance
+            nonlocal fly_mouse_pos
+            nonlocal region_3d
             stop_fly()
 
             if context.space_data.type == "VIEW_3D":
@@ -102,17 +121,15 @@ def register(utils):
                 region_3d.is_perspective = True
                 region_3d.view_perspective = "PERSP"
                 
-                offset = 0.1
-                fly_original_distance = region_3d.view_distance - offset
+                fly_original_distance = max(region_3d.view_distance, 0.1) - OFFSET
                 look_vec = region_3d.view_rotation @ mathutils.Vector((0, 0, -1))
                 region_3d.view_location -= look_vec * fly_original_distance
-                region_3d.view_distance = offset
+                region_3d.view_distance = OFFSET
 
                 self.last_time = time.process_time()
-                self.mouse_x = event.mouse_x
-                self.mouse_y = event.mouse_y
-                self.last_mouse_x = self.mouse_x
-                self.last_mouse_y = self.mouse_y
+                fly_mouse_pos = (event.mouse_x, event.mouse_y,)
+                self.mouse_delta_x = 0
+                self.mouse_delta_y = 0
                 self.active_keys = []
 
                 rot = region_3d.view_rotation
@@ -124,17 +141,10 @@ def register(utils):
                 context.window_manager.modal_handler_add(self)
                 fly_handle_3d = bpy.types.SpaceView3D.draw_handler_add(draw_callback_3d, (self, context), 'WINDOW', 'PRE_VIEW')
                 fly_timer = context.window_manager.event_timer_add(0.01, window=context.window)
+                context.window.cursor_modal_set("NONE")
                 return {"RUNNING_MODAL"}
             else:
                 return {"FINISHED"}
-        
-        def draw(self, context):
-            layout = self.layout
-            col = layout.column()
-            col.label(text="Custom Interface!")
-
-            row = col.row()
-            row.prop(self, "my_float")
 
     window_manager = bpy.context.window_manager
     addon_keyconfig = window_manager.keyconfigs.addon

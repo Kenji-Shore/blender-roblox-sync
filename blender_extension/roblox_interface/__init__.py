@@ -3,6 +3,7 @@ import bpy
 def register(utils):
     manage_roblox_plugin = utils.import_module("manage_roblox_plugin")
     roblox_server = utils.import_module("roblox_server")
+    process_assets = utils.import_module("process_assets")
 
     syncing = False
     class VIEW3D_OT_toggle_roblox_sync(bpy.types.Operator):
@@ -21,7 +22,7 @@ def register(utils):
         bl_options = {"REGISTER", "UNDO"}
 
         def execute(self, context):
-            print(bpy.path.basename(bpy.context.blend_data.filepath))
+            process_assets.process_assets()
             return {"FINISHED"}
 
     class VIEW3D_PT_roblox_sync(bpy.types.Panel):
