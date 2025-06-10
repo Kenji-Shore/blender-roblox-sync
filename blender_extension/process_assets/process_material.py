@@ -1,7 +1,7 @@
-import bpy
+import bpy, struct
+import numpy as np
 
 def register(utils):
-    process_image = utils.import_module("process_image")
 
     def output_socket_is_connected(output_socket):
         for link in output_socket.links:
@@ -24,46 +24,59 @@ def register(utils):
                     return True
         return False
 
-    global process_materials
-    def process_materials(material_slots, send_images):
-        assigned_materials = {}
-        for material_slot in material_slots:
-            material = material_slot.material
-            if material and material.node_tree:
-                color_attribute_name = None
-                image_node = None
-                bsdf_node = None
-                for node in material.node_tree.nodes:
-                    match type(node):
-                        case bpy.types.ShaderNodeTexImage:
-                            if output_socket_is_connected(node.outputs.get("Color")) and node.image:
-                                image_node = node
-                        case bpy.types.ShaderNodeVertexColor:
-                            if output_socket_is_connected(node.outputs.get("Color")):
-                                color_attribute_name = node.layer_name
-                        case bpy.types.ShaderNodeBsdfPrincipled:
-                            if output_socket_is_connected(node.outputs.get("BSDF")):
-                                bsdf_node = node
+    def process_image(assets, image):
+        width, height = tuple(image.size)
+        if width == 0 and height == 0:
+            return None
+        
+        pixels = np.empty(width * height * 4, dtype=np.float32)
+        image.pixels.foreach_get(pixels)
+        np.multiply(pixels, 255, out=pixels)
+        image_bytes = struct.pack("<2H", width, height) + pixels.astype(np.uint8).data
+        return assets.hash_bytes(image_bytes)
 
-                use_image_transparency = False
-                if image_node and bsdf_node:
-                    for link in bsdf_node.inputs.get("Alpha").links:
-                        if link.is_valid and (not link.is_muted) and (link.from_node == image_node):
-                            use_image_transparency = True
-                            break
+    global validated_assets
+    validated_assets = []
+    global send_assets
+    send_assets = {}
+    global process
+    def process(assets, material):
+        if material.node_tree:
+            uv_map = ""
+            color_attribute = ""
 
-                assigned_materials[material_slot.slot_index] = {
-                    "color_attribute_name": color_attribute_name, 
-                    "image_hash": process_image.process_image(image_node.image, send_images) if image_node else None,
-                    "alpha": bsdf_node.inputs.get("Alpha").default_value if bsdf_node else None,
-                    "use_image_transparency": use_image_transparency
-                }
+            image_node = None
+            bsdf_node = None
+            for node in material.node_tree.nodes:
+                match type(node):
+                    case bpy.types.ShaderNodeTexImage:
+                        if output_socket_is_connected(node.outputs.get("Color")) and node.image:
+                            image_node = node
+                    case bpy.types.ShaderNodeVertexColor:
+                        if output_socket_is_connected(node.outputs.get("Color")):
+                            color_attribute = node.layer_name
+                    case bpy.types.ShaderNodeBsdfPrincipled:
+                        if output_socket_is_connected(node.outputs.get("BSDF")):
+                            bsdf_node = node
+                    case bpy.types.ShaderNodeUVMap:
+                        if output_socket_is_connected(node.outputs.get("UV")):
+                            uv_map = node.uv_map
 
-        if len(assigned_materials) == 0:
-            assigned_materials[0] = {
-                "color_attribute_name": None, 
-                "image_hash": None,
-                "alpha": 1,
-                "use_image_transparency": False
-            }
-        return assigned_materials
+            use_image = image_node != None
+            use_image_transparency = False 
+            use_scroll_texture = material.use_custom_material and material.use_scroll_texture
+
+            if use_image and bsdf_node:
+                for link in bsdf_node.inputs.get("Alpha").links:
+                    if link.is_valid and (not link.is_muted) and (link.from_node == image_node):
+                        use_image_transparency = True
+                        break
+            
+            send = (uv_map, color_attribute, use_image, use_image_transparency, use_scroll_texture,)
+            if use_image:
+                send += (process_image(assets, image_node.image),)
+            if not use_image_transparency:
+                send += (round((bsdf_node.inputs.get("Alpha").default_value if bsdf_node else 1) * 255),)
+            if use_scroll_texture:
+                send += (material.scroll_speed,)
+            return send

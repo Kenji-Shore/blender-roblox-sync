@@ -5,6 +5,28 @@
             "name": "sendObjects",
             "sender": "python",
             "data": [
+                {"index": "str", "value": [
+                    "str", "str", 
+                    {
+                        "register_mask": ["use_image", "use_image_transparency", "use_scroll_texture"], 
+                        "data": [
+                            {"mask": "use_image", "data": "hash"},
+                            {"mask": "use_image_transparency", "invert": true, "data": "u8"},
+                            {"mask": "use_scroll_texture", "scroll_speed": "f32"}
+                        ]
+                    }
+                ]},
+                {"index": "str", "value": [
+                    "str", "str", 
+                    {
+                        "register_mask": ["use_image", "use_image_transparency", "use_scroll_texture"], 
+                        "data": [
+                            {"mask": "use_image", "data": "hash"},
+                            {"mask": "use_image_transparency", "invert": true, "data": "u8"},
+                            {"mask": "use_scroll_texture", "scroll_speed": "f32"}
+                        ]
+                    }
+                ]},
                 {"index": "hash", "value": "buf"},
                 {"index": "hash", "value": "buf"},
                 {"index": "hash", "value": [

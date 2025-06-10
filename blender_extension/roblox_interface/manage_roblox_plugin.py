@@ -45,12 +45,18 @@ def register(utils):
 
         last_dir: bpy.props.StringProperty(default="")
         plugins_dir: bpy.props.StringProperty(
-            name="Local Plugin pathlib.Path",
-            description = "Roblox Studio Local Plugin Folder pathlib.Path",
+            name="Local Plugin Path",
+            description = "Roblox Studio Local Plugin Folder Path",
             default="",
             subtype='DIR_PATH',
             update=plugins_dir_update
         )
+
+        def draw(self, context):
+            layout = self.layout
+            row = layout.row()
+            row.prop(self, "plugins_dir")
+            
     bpy.utils.register_class(CustomAddonPreferences)
     preferences = bpy.context.preferences
     addon_prefs = preferences.addons[utils.ROOT_PACKAGE].preferences

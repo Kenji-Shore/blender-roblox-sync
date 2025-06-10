@@ -2,17 +2,19 @@ import bpy
 
 def register(utils):
 
-	global process_object
-	def process_object(object):
-		object = object.evaluated_get(depsgraph)
-		position, rotation, scale = object.matrix_world.decompose()
-		scale, hashes = process_mesh(object.data, scale, send_meshes, process_materials(object.material_slots, send_images))
-		send_object = (
-			object.name,
-			object.matrix_world.copy().freeze(),
-			scale.freeze(),
-			hashes
-		)
+    global process
+    def process(assets, object):
+        if object.type == "MESH":
+            object = object.evaluated_get(assets.depsgraph)
+            position, rotation, scale = object.matrix_world.decompose()
 
-		object_hash = hash(send_object)
-		send_objects[object_hash] = send_object
+            mesh = object.data
+            assets.process("mesh", mesh)
+
+            material_slots = []
+            for material_slot in object.material_slots:
+                material = material_slot.material
+                assets.process("material", material)
+                material_slots[material_slot.slot_index] = material.name
+
+            return (mesh.name, object.matrix_world.copy().freeze(), scale.freeze(), material_slots,)
