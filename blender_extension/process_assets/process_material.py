@@ -35,10 +35,6 @@ def register(utils):
         image_bytes = struct.pack("<2H", width, height) + pixels.astype(np.uint8).data
         return assets.hash_bytes(image_bytes)
 
-    global validated_assets
-    validated_assets = []
-    global send_assets
-    send_assets = {}
     global process
     def process(assets, material):
         if material.node_tree:

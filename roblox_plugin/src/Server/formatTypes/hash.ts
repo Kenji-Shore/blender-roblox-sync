@@ -3,7 +3,7 @@ import type * as ProcessFormats from "../processFormats";
 import SendMessagesThread from "../sendMessages";
 import ReceiveMessagesThread from "../receiveMessages";
 
-const DATA_SIZE = 8;
+const DATA_SIZE = 32;
 export function read(
 	receiveThread: ReceiveMessagesThread,
 	args: defined[],
@@ -11,7 +11,8 @@ export function read(
 	masks: Map<string, boolean>,
 ) {
 	const [readBuffer, readOffset] = ReceiveMessagesThread.readBuffer(receiveThread, DATA_SIZE);
-	args.push(buffer.readstring(readBuffer, readOffset, DATA_SIZE));
+	const hashValue = buffer.readstring(readBuffer, readOffset, DATA_SIZE);
+	args.push(hashValue);
 }
 export function write(
 	sendThread: SendMessagesThread,
@@ -20,9 +21,8 @@ export function write(
 	formatData: ProcessFormats.FormatData,
 	masks: Map<string, boolean>,
 ): number {
-	const value = args[argsCount] as string;
-	const data = buffer.create(DATA_SIZE);
-	buffer.writestring(data, 0, value, DATA_SIZE);
+	const hashValue = args[argsCount] as string;
+	const data = buffer.fromstring(hashValue);
 	SendMessagesThread.writeBuffer(sendThread, data, DATA_SIZE);
 	return argsCount + 1;
 }

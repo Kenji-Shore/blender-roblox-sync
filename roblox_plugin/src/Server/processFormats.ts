@@ -21,7 +21,7 @@ type RawFormatData =
 	| keyof Datatypes
 	| { index?: RawFormatData; value: RawFormatData }
 	| { register_mask: string | string[]; data: RawFormatData }
-	| { mask: string; data: RawFormatData }
+	| { mask: string; invert?: boolean; data: RawFormatData }
 	| { repeat: number; data: RawFormatData }
 	| RawFormatData[];
 
@@ -68,7 +68,7 @@ export type FormatData =
 	| { type: "array"; value: FormatData }
 	| { type: "dict"; index: FormatData; value: FormatData }
 	| { type: "register_mask"; register_mask: string[]; count_format: CountFormat; data: FormatData }
-	| { type: "mask"; mask: string; data: FormatData }
+	| { type: "mask"; mask: string; invert?: boolean; data: FormatData }
 	| { type: "repeat"; repeat: number; data: FormatData }
 	| FormatData[];
 
@@ -96,6 +96,7 @@ function transformFormat(rawFormatData: RawFormatData, requiredType?: keyof Chec
 				return {
 					type: "mask",
 					mask: rawFormatData.mask,
+					invert: rawFormatData.invert,
 					data: data,
 				};
 			} else if ("repeat" in rawFormatData) {

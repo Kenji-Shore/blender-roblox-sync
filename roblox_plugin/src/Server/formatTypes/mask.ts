@@ -6,6 +6,7 @@ import ReceiveMessagesThread from "../receiveMessages";
 interface MaskFormatData {
 	type: "mask";
 	mask: string;
+	invert?: boolean;
 	data: ProcessFormats.FormatData;
 }
 export function read(
@@ -15,7 +16,11 @@ export function read(
 	masks: Map<string, boolean>,
 ) {
 	const mask = formatData.mask;
-	if (masks.get(mask)) {
+	let condition = !!masks.get(mask);
+	if ("invert" in formatData && formatData.invert) {
+		condition = !condition;
+	}
+	if (condition) {
 		ReceiveMessagesThread.parse(receiveThread, args, formatData.data, masks);
 	}
 }
@@ -27,7 +32,11 @@ export function write(
 	masks: Map<string, boolean>,
 ): number {
 	const mask = formatData.mask;
-	if (masks.get(mask)) {
+	let condition = !!masks.get(mask);
+	if ("invert" in formatData && formatData.invert) {
+		condition = !condition;
+	}
+	if (condition) {
 		argsCount = SendMessagesThread.parse(sendThread, args, argsCount, formatData.data, masks);
 	}
 	return argsCount;
