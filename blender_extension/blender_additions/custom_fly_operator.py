@@ -77,8 +77,6 @@ def register(utils):
             target_euler = mathutils.Euler((self.target_rot_x, 0, self.target_rot_z), "ZXY")
             target_rot = target_euler.to_quaternion().inverted().normalized()
             region_3d.view_rotation = rot.slerp(target_rot, max(min(30 * delta_time, 1), 0))
-        region_3d.update()
-        context.area.tag_redraw()
 
     class VIEW3D_OT_custom_fly(bpy.types.Operator):
         bl_idname = "view3d.custom_fly"

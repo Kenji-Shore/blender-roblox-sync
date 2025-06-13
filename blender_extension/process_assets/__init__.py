@@ -1,7 +1,8 @@
-import bpy, hashlib, time
+import bpy, hashlib
 
 def register(utils):
     ASSET_TYPES = {
+        "scene": bpy.types.Scene,
         "collection": bpy.types.Collection,
         "object": bpy.types.Object,
         "mesh": bpy.types.Mesh,

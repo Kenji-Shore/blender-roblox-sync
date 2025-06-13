@@ -16,16 +16,16 @@ def register(utils):
             syncing = not syncing
             return {"FINISHED"}
     
-    class SyncingID(bpy.types.PropertyGroup):
+    class SyncingAsset(bpy.types.PropertyGroup):
         is_scene: bpy.props.BoolProperty()
         id: bpy.props.PointerProperty(type=bpy.types.ID)
-    bpy.utils.register_class(SyncingID)
-    bpy.types.Scene.currently_syncing = bpy.props.CollectionProperty(type=SyncingID)
+    bpy.utils.register_class(SyncingAsset)
+    bpy.types.Scene.currently_syncing = bpy.props.CollectionProperty(type=SyncingAsset)
     bpy.types.Scene.currently_syncing_index = bpy.props.IntProperty(default=0)
 
-    class VIEW3D_OT_remove_sync(bpy.types.Operator):
-        bl_idname = "view3d.remove_sync"
-        bl_label = "Stop Syncing Object"
+    class VIEW3D_OT_toggle_sync(bpy.types.Operator):
+        bl_idname = "view3d.toggle_sync"
+        bl_label = "Toggle Syncing Object"
         bl_options = {"REGISTER", "UNDO"}
 
         def execute(self, context):
@@ -56,7 +56,7 @@ def register(utils):
                     set_icon = "OUTLINER_COLLECTION"
             layout.label(text=set_text, icon=set_icon)
             if index == getattr(active_data, active_property):
-                layout.operator("view3d.remove_sync", text="", icon="X", emboss=False)
+                layout.operator("view3d.toggle_sync", text="", icon="PAUSE", emboss=False)
         def draw_filter(self, context, layout):
             return
     bpy.utils.register_class(SyncList)
@@ -152,10 +152,19 @@ def register(utils):
             row2 = col2.row()
             row2.progress(factor=0.5)
             row2.scale_y = 0.4
+
+            box = layout.box()
+            active_object = bpy.context.object
+            if active_object:
+                row = box.row()
+                row.prop(active_object, "is_invisible", text="Is Invisible")
+                if active_object.is_invisible:
+                    row = box.row()
+                    row.prop(active_object, "invisible_color", text="Color")
             # layout.operator("view3d.hgf_other_operator", text="test button")
     
     def unregister():
-        bpy.utils.unregister_class(SyncingID)
+        bpy.utils.unregister_class(SyncingAsset)
         bpy.utils.unregister_class(SyncList)
     return {
         "classes": (
@@ -164,7 +173,7 @@ def register(utils):
             VIEW3D_OT_OTHER_OPERATOR, 
             VIEW3D_OT_sync_selected,
             VIEW3D_OT_sync_scene,
-            VIEW3D_OT_remove_sync,
+            VIEW3D_OT_toggle_sync,
         ),
         "unregister": unregister
     }

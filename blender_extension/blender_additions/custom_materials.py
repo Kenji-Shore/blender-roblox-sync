@@ -277,6 +277,7 @@ def register(utils):
 
             box = layout.box()
             box.prop(mat, "use_custom_material", text="Use Custom Material")
+
             if mat.use_custom_material:
                 nodes = mat.node_tree.nodes
                 image_node, bsdf_node = None, None
@@ -332,6 +333,6 @@ def register(utils):
         "classes": (EEVEE_MATERIAL_PT_surface,),
         "listeners": (
             utils.listen_operator("MATERIAL_OT_new", material_added),
-            utils.listen_handler("load_post", load_post)
-        )
+            utils.listen_handler("load_post", load_post),
+        ),
     }
