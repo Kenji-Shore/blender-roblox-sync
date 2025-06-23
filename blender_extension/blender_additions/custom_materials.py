@@ -24,14 +24,8 @@ def register(utils):
                     "show_options": False,
                 },
                 "inputs": {
-                    "Rotation": {
-                        "enabled": False,
-                        "default_value": mathutils.Vector(),
-                    },
-                    "Scale": {
-                        "enabled": False,
-                        "default_value": mathutils.Vector((1, 1, 1)),
-                    },
+                    "Rotation": { "enabled": False, "default_value": mathutils.Vector() },
+                    "Scale": { "enabled": False, "default_value": mathutils.Vector((1, 1, 1)) },
                 },
             }
         if not mat.use_image_transparency:
@@ -48,10 +42,7 @@ def register(utils):
                     "show_options": False,
                 },
                 "inputs": {
-                    "Factor_Float": {
-                        "enabled": False,
-                        "default_value": 1,
-                    },
+                    "Factor_Float": { "enabled": False, "default_value": 1 },
                 },
             }
             node_properties["ShaderNodeVertexColor"] = {
@@ -84,47 +75,46 @@ def register(utils):
                 "location": mathutils.Vector((510, -80)),
                 "width": 240,
                 "height": 100,
+                "subsurface_method": "RANDOM_WALK",
+                "distribution": "MULTI_GGX",
             },
             "inputs": {
-                "Metallic": {
-                    "enabled": False,
-                    "default_value": 0
-                },
-                "Roughness": {
-                    "enabled": False,
-                    "default_value": 1
-                },
-                "IOR": {
-                    "enabled": False,
-                    "default_value": 1
-                },
+                "Metallic": { "enabled": False, "default_value": 0 },
+                "Roughness": { "enabled": False, "default_value": 1 },
+                "IOR": { "enabled": False, "default_value": 1 },
                 "Alpha": { "enabled": True },
-                "Normal": { "enabled": False },
-                "Weight": { "enabled": False },
-                "Diffuse Roughness": { "enabled": False },
-                "Subsurface Weight": { "enabled": False },
-                "Subsurface Radius": { "enabled": False },
-                "Subsurface Scale": { "enabled": False },
+                "Normal": { "enabled": False, "default_value": [0, 0, 0] },
+                "Weight": { "enabled": False, "default_value": 0 },
+                "Diffuse Roughness": { "enabled": False, "default_value": 0 },
+
+                "Subsurface Weight": { "enabled": False, "default_value": 0 },
+                "Subsurface Radius": { "enabled": False, "default_value": [1, 0.2, 0.1] },
+                "Subsurface Scale": { "enabled": False, "default_value": 0.05 },
                 "Subsurface IOR": { "enabled": False },
-                "Subsurface Anisotropy": { "enabled": False },
-                "Specular IOR Level": { "enabled": False },
-                "Specular Tint": { "enabled": False },
-                "Anisotropic": { "enabled": False },
-                "Anisotropic Rotation": { "enabled": False },
-                "Tangent": { "enabled": False },
-                "Transmission Weight": { "enabled": False },
-                "Coat Weight": { "enabled": False },
-                "Coat Roughness": { "enabled": False },
-                "Coat IOR": { "enabled": False },
-                "Coat Tint": { "enabled": False },
-                "Coat Normal": { "enabled": False },
-                "Sheen Weight": { "enabled": False },
-                "Sheen Roughness": { "enabled": False },
-                "Sheen Tint": { "enabled": False },
-                "Emission Color": { "enabled": False },
-                "Emission Strength": { "enabled": False },
-                "Thin Film Thickness": { "enabled": False },
-                "Thin Film IOR": { "enabled": False },
+                "Subsurface Anisotropy": { "enabled": False, "default_value": 0 },
+
+                "Specular IOR Level": { "enabled": False, "default_value": 0.5 },
+                "Specular Tint": { "enabled": False, "default_value": [1, 1, 1, 1] },
+                "Anisotropic": { "enabled": False, "default_value": 0 },
+                "Anisotropic Rotation": { "enabled": False, "default_value": 0 },
+                "Tangent": { "enabled": False, "default_value": [0, 0, 0] },
+                "Transmission Weight": { "enabled": False, "default_value": 0 },
+
+                "Coat Weight": { "enabled": False, "default_value": 0 },
+                "Coat Roughness": { "enabled": False, "default_value": 0.03 },
+                "Coat IOR": { "enabled": False, "default_value": 1.5 },
+                "Coat Tint": { "enabled": False, "default_value": [1, 1, 1, 1] },
+                "Coat Normal": { "enabled": False, "default_value": [0, 0, 0] },
+
+                "Sheen Weight": { "enabled": False, "default_value": 0 },
+                "Sheen Roughness": { "enabled": False, "default_value": 0.5 },
+                "Sheen Tint": { "enabled": False, "default_value": [1, 1, 1, 1] },
+
+                "Emission Color": { "enabled": False, "default_value": [1, 1, 1, 1] },
+                "Emission Strength": { "enabled": False, "default_value": 0 },
+
+                "Thin Film Thickness": { "enabled": False, "default_value": 0 },
+                "Thin Film IOR": { "enabled": False, "default_value": 1.33 },
             },
         }
         node_properties["ShaderNodeOutputMaterial"] = {

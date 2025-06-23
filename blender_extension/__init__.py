@@ -11,7 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import bpy, queue, importlib, pathlib, inspect
+import bpy, queue, importlib, pathlib, inspect, uuid
 from contextlib import contextmanager
 
 ROOT_PATH = pathlib.Path(__file__).parent
@@ -33,19 +33,19 @@ class Utils:
     
     __listen_operators = {}
     def listen_operator(self, operator_name, callback):
-        key = ()
+        key = uuid.uuid4()
         self.__listen_operators[key] = {"operator": operator_name, "callback": callback}
         return key
 
     __listen_modes = {}
     def listen_mode(self, modes, **kwargs):
-        key = ()
+        key = uuid.uuid4()
         self.__listen_modes[key] = {"modes": modes, **kwargs}
         return key
 
     __listen_depsgraph_updates = {}
     def listen_depsgraph_update(self, callback):
-        key = ()
+        key = uuid.uuid4()
         self.__listen_depsgraph_updates[key] = callback
         return key
 
@@ -56,7 +56,7 @@ class Utils:
         def wrapped_callback(*args):
             return callback(*args[:args_count])
         
-        key = ()
+        key = uuid.uuid4()
         self.__listen_handlers[key] = (handler_name, wrapped_callback)
         getattr(bpy.app.handlers, handler_name).append(wrapped_callback)
         return key
@@ -65,9 +65,38 @@ class Utils:
     def listen_timer(self, callback, **kwargs): #only use for repeating timers, not one-time timers
         bpy.app.timers.register(callback, **kwargs)
 
-        key = ()
+        key = uuid.uuid4()
         self.__listen_timers[key] = callback
         return key
+
+    def load_resources(self, file_path, *args):
+        with bpy.data.libraries.load(file_path) as (data_from, data_to):
+            for attr in args:
+                setattr(data_to, attr, getattr(data_from, attr))
+
+        resources = {}
+        temp_dict = {}
+        def add_resources(attr):
+            if len(temp_dict) > 0:
+                if not attr in resources:
+                    resources[attr] = {}
+                resources[attr].update(temp_dict)
+                temp_dict.clear()
+
+        for attr in dir(bpy.data):
+            prop_collection = getattr(bpy.data, attr, None)
+            if isinstance(prop_collection, bpy.types.bpy_prop_collection):
+                for id in prop_collection:
+                    if id.library_weak_reference and (id.library_weak_reference.filepath == file_path):
+                        id.is_runtime_data = True
+                        temp_dict[id.name] = id
+                add_resources(attr)
+        for attr in args:
+            for id in getattr(data_to, attr):
+                id.is_runtime_data = True
+                temp_dict[id.name] = id
+            add_resources(attr)
+        return resources
 
     def unlisten(self, key):
         if key in self.__listen_operators:

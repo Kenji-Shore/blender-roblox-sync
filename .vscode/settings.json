@@ -20,7 +20,7 @@
         "--open-last"
     ],
     "files.exclude": {
-        "**/.git": false,
+        "**/.git": true,
         "**/.svn": false,
         "**/.hg": false,
         "**/.DS_Store": true,
@@ -28,7 +28,7 @@
         "**/.eslintrc": false,
         "**/.gitignore": false,
         "**/.prettierrc": false,
-        "**/.vscode": false,
+        "**/.vscode": true,
         "**/package-lock.json": false,
         "**/pnpm-lock.yaml": true,
         "aftman.toml": false,

@@ -13,23 +13,30 @@ def register(utils):
         "White": mathutils.Color((1, 1, 1)),
     }
 
+    VISIBLE_SETTINGS = {
+        "show_in_front": False,
+        "visible_shadow": True,
+        "visible_volume_scatter": True,
+        "visible_transmission": True,
+        "visible_glossy": True,
+        "visible_diffuse": True,
+        "visible_camera": True
+    }
+    class VisibleSettings(bpy.types.PropertyGroup):
+        pass
+    for property_name, default_setting in VISIBLE_SETTINGS.items():
+        VisibleSettings.__annotations__[property_name] = bpy.props.BoolProperty(default=default_setting)
+    bpy.utils.register_class(VisibleSettings)
+    bpy.types.Object.visible_settings = bpy.props.PointerProperty(type=VisibleSettings)
+
     def update_is_invisible(self, context):
         if self.is_invisible:
-            self.show_in_front = True
-            self.visible_shadow = False
-            self.visible_volume_scatter = False
-            self.visible_transmission = False
-            self.visible_glossy = False
-            self.visible_diffuse = False
-            self.visible_camera = False
+            for property_name, default_setting in VISIBLE_SETTINGS.items():
+                setattr(self.visible_settings, property_name, getattr(self, property_name))
+                setattr(self, property_name, not default_setting)
         else:
-            self.show_in_front = False
-            self.visible_shadow = True
-            self.visible_volume_scatter = True
-            self.visible_transmission = True
-            self.visible_glossy = True
-            self.visible_diffuse = True
-            self.visible_camera = True
+            for property_name, default_setting in VISIBLE_SETTINGS.items():
+                setattr(self, property_name, getattr(self.visible_settings, property_name))
     bpy.types.Object.is_invisible = bpy.props.BoolProperty(default=False, update=update_is_invisible)
     bpy.types.Object.invisible_color = bpy.props.EnumProperty(items=[(key, key, "") for key in COLORS.keys()], default="Red")
 
@@ -73,14 +80,12 @@ def register(utils):
 
             triangles_shader, triangles_batch, edges_shader, edges_batch = batches
 
-            # gpu.state.face_culling_set("BACK")
             gpu.state.depth_test_set("LESS_EQUAL")
             gpu.state.blend_set("ALPHA")
             triangles_shader.uniform_float("color", (face_color.r, face_color.g, face_color.b, 0.2,)) 
             triangles_batch.draw(triangles_shader)
             gpu.state.blend_set("NONE")
             gpu.state.depth_test_set("NONE")
-            # gpu.state.face_culling_set("NONE")
             
             edges_shader.uniform_float("color", (edge_color.r, edge_color.g, edge_color.b, 1,)) 
             edges_batch.draw(edges_shader)
@@ -91,18 +96,15 @@ def register(utils):
             id = depsgraph_update.id
             if (id.original in object_batches) and (depsgraph_update.is_updated_transform or depsgraph_update.is_updated_geometry):
                 object_batches.pop(id.original)
-    def load_post(file):
-        for object in bpy.data.objects:
-            update_is_invisible(object, bpy.context)
     def unregister():
         nonlocal outline_handle_3d
         if outline_handle_3d:
             bpy.types.SpaceView3D.draw_handler_remove(outline_handle_3d, "WINDOW")
             outline_handle_3d = None
+        bpy.utils.unregister_class(VisibleSettings)
     return {
         "listeners": (
             utils.listen_handler("depsgraph_update_post", depsgraph_update_post),
-            utils.listen_handler("load_post", load_post),
         ),
         "unregister": unregister
     }
