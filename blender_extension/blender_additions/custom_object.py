@@ -8,7 +8,6 @@ def register(utils):
     #     def __init__(mesh, *, image=None, ):
     #         print()
 
-    
     texture = None
     transform = None
     shader = None
