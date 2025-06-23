@@ -1,6 +1,6 @@
 # Blender Roblox Sync
 Automatically sync live changes to your assets in Blender directly to Roblox Studio! Publish your previewed assets with the click of a button!
-> To use the asset publishing feature, you will need grant this addon access to the following Roblox permissions: *asset:read, asset:write, legacy-asset:manage* **. You will be prompted for these permissions upon clicking the publish button in the addon.
+> To use the asset publishing feature, you will need grant this addon access to the following Roblox permissions: *asset:read, asset:write, legacy-asset:manage*. You will be prompted for these permissions upon clicking the publish button in the addon.
 
 ## Privacy Policy
 This application does not collect any personal data. However, it will prompt you to grant the following Roblox permissions:
