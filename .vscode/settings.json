@@ -20,6 +20,32 @@
         "--open-last"
     ],
     "files.exclude": {
+        "**/.git": false,
+        "**/.svn": false,
+        "**/.hg": false,
+        "**/.DS_Store": false,
+        "**/Thumbs.db": false,
+        "**/.eslintrc": false,
+        "**/.gitignore": false,
+        "**/.prettierrc": false,
+        "**/.vscode": false,
+        "**/package-lock.json": false,
+        "**/pnpm-lock.yaml": false,
+        "aftman.toml": false,
+        "commands": false,
+        "**/*.tsbuildinfo": false,
+        "**/tsconfig.json": false,
+        "**/eslint.config.mjs": false,
+        "**/default.project.json": false,
+        "**/aftman.toml": false,
+        "**/package.json": false,
+        "**/pnpm-workspace.yaml": false,
+        "**/node_modules": false,
+        "**/include": false,
+        "**/wheels": false,
+        "**/__pycache__": false
+    },
+    "explorerExclude.backup": {
         "**/.git": true,
         "**/.svn": false,
         "**/.hg": false,
@@ -45,6 +71,5 @@
         "**/wheels": true,
         "**/__pycache__": true
     },
-    "explorerExclude.backup": {},
     "blender.addon.reloadOnSave": true,
 }
