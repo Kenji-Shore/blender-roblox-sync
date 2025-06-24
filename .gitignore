@@ -1,6 +1,5 @@
 **/node_modules
 **/out
 **/include
-.DS_Store
-.pnpm
 **/__pycache__
+.DS_Store
