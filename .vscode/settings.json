@@ -1,5 +1,4 @@
 {
-	"typescript.tsdk": "node_modules/typescript/lib",
 	"files.eol": "\n",
 	"[typescript]": {
 		"editor.defaultFormatter": "dbaeumer.vscode-eslint",
@@ -15,61 +14,34 @@
 		"reportInvalidTypeForm": "none"
 	},
 	"editor.insertSpaces": false,
+    "editor.detectIndentation": true,
+	"files.exclude": {
+		"**/.git": true,
+		"**/.gitignore": true,
+		"**/.DS_Store": true,
+
+		"**/package*.json": true,
+		"**/pnpm*.yaml": true,
+
+		"**/*.tsbuildinfo": true,
+		"**/node_modules": true,
+		"**/out": true,
+		"**/tsconfig*.json": true,
+		"**/eslint.config.mjs": true,
+
+        "**/*.project.json": true,
+        "**/aftman.toml": true,
+
+        "**/wheels": true,
+        "**/__pycache__": true,
+        "**/*.blend1": true,
+	},
+	"explorer.excludeGitIgnore": false,
+	"roblox-ts.command.npm.useNpmScripts": true,
+
 	"python.defaultInterpreterPath": "python3",
+    "blender.addon.reloadOnSave": true,
 	"blender.additionalArguments": [
         "--open-last"
     ],
-    "files.exclude": {
-        "**/.git": false,
-        "**/.svn": false,
-        "**/.hg": false,
-        "**/.DS_Store": false,
-        "**/Thumbs.db": false,
-        "**/.eslintrc": false,
-        "**/.gitignore": false,
-        "**/.prettierrc": false,
-        "**/.vscode": false,
-        "**/package-lock.json": false,
-        "**/pnpm-lock.yaml": false,
-        "aftman.toml": false,
-        "commands": false,
-        "**/*.tsbuildinfo": false,
-        "**/tsconfig.json": false,
-        "**/eslint.config.mjs": false,
-        "**/default.project.json": false,
-        "**/aftman.toml": false,
-        "**/package.json": false,
-        "**/pnpm-workspace.yaml": false,
-        "**/node_modules": false,
-        "**/include": false,
-        "**/wheels": false,
-        "**/__pycache__": false
-    },
-    "explorerExclude.backup": {
-        "**/.git": true,
-        "**/.svn": false,
-        "**/.hg": false,
-        "**/.DS_Store": true,
-        "**/Thumbs.db": false,
-        "**/.eslintrc": false,
-        "**/.gitignore": false,
-        "**/.prettierrc": false,
-        "**/.vscode": true,
-        "**/package-lock.json": false,
-        "**/pnpm-lock.yaml": true,
-        "aftman.toml": false,
-        "commands": true,
-        "**/*.tsbuildinfo": true,
-        "**/tsconfig.json": true,
-        "**/eslint.config.mjs": true,
-        "**/default.project.json": true,
-        "**/aftman.toml": true,
-        "**/package.json": true,
-        "**/pnpm-workspace.yaml": true,
-        "**/node_modules": true,
-        "**/include": true,
-        "**/wheels": true,
-        "**/__pycache__": true
-    },
-    "blender.addon.reloadOnSave": true,
 }
