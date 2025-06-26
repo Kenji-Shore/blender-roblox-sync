@@ -4,7 +4,7 @@
   "description": "",
   "scripts": {
     "watch": "nodemon --watch src --exec pnpm changed",
-    "changed": "rbxtsc --writeOnlyChanged --optimizedLoops && rojo build . --output ../blender_extension/roblox_interface/blender_roblox_sync.rbxm && ln -f src/Server/message_formats.json ../blender_extension/roblox_interface/roblox_server/"
+    "changed": "rbxtsc --writeOnlyChanged --optimizedLoops && rojo build . --output ../blender_roblox_sync/roblox_interface/blender_roblox_sync.rbxm && ln -f src/Server/message_formats.json ../blender_roblox_sync/roblox_interface/roblox_server/"
   },
   "nodemonConfig": {
     "ext": "ts,tsx,json",
