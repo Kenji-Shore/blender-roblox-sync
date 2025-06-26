@@ -185,7 +185,7 @@ const totalMessages = rawMessages.size();
 export const sendMessageIds = new Map<string, number>();
 export const receiveMessageIds = new Map<string, number>();
 export const messageFormats: FormatData[] = [];
-export const SEND_LIMIT = messageFormatsFile.send_limit;
+export const SEND_LIMIT = 20000000;
 export const messageIdFormat = getFormatForCount(totalMessages);
 for (const i of $range(0, totalMessages - 1)) {
 	const rawMessage = rawMessages[i];

@@ -2,7 +2,6 @@
 	"recommendations": [
 		"roblox-ts.vscode-roblox-ts",
 		"dbaeumer.vscode-eslint",
-		"peterschmalfeldt.explorer-exclude",
 		"jacqueslucke.blender-development"
 	]
 }

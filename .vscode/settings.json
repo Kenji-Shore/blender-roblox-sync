@@ -20,11 +20,12 @@
 		"**/.gitignore": true,
 		"**/.DS_Store": true,
 
-		"**/package*.json": true,
+		"**/package*.json": false,
 		"**/pnpm*.yaml": true,
 
 		"**/*.tsbuildinfo": true,
 		"**/node_modules": true,
+		"**/include": true,
 		"**/out": true,
 		"**/tsconfig*.json": true,
 		"**/eslint.config.mjs": true,

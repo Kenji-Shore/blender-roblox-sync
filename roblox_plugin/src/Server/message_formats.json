@@ -1,5 +1,4 @@
 {
-    "send_limit": 20000000,
     "messages": [
         {
             "name": "sendAssets",

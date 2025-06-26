@@ -122,7 +122,7 @@ def register(utils, package):
         global message_id_format
         global SEND_LIMIT
         message_id_format = get_format_for_count(total_messages)
-        SEND_LIMIT = file_json["send_limit"]
+        SEND_LIMIT = 20000000
 
     global read_funcs
     global write_funcs

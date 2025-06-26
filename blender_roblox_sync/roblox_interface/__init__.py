@@ -2,7 +2,7 @@ import bpy
 
 def register(utils, package):
     manage_roblox_plugin = utils.import_module("manage_roblox_plugin")
-    roblox_server = utils.import_module("roblox_server")
+    server = utils.import_module("server")
     process_assets = utils.import_module("process_assets")
 
     syncing = False
@@ -121,7 +121,7 @@ def register(utils, package):
         bl_label = "Roblox Sync"
         
         def draw(self, context):
-            roblox_server.is_connected_area = context.area
+            server.is_connected_area = context.area
             layout = self.layout
 
             box = layout.box()
@@ -138,7 +138,7 @@ def register(utils, package):
             sync_text = ""
             if not manage_roblox_plugin.is_valid_dir:
                 sync_text = "Invalid Plugin Directory"
-            elif not roblox_server.is_connected:
+            elif not server.is_connected:
                 sync_text = "Roblox Studio Not Open"
             else:
                 sync_text = "Stop Sync" if syncing else "Start Sync"
