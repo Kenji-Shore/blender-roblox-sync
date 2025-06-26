@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "watch": "nodemon --watch src --exec pnpm changed",
-    "changed": "rbxtsc --writeOnlyChanged --optimizedLoops && rojo build . --output ../blender_roblox_sync/roblox_interface/blender_roblox_sync.rbxm && ln -f src/Server/message_formats.json ../blender_roblox_sync/roblox_interface/roblox_server/"
+    "watch": "nodemon --watch src --exec ../setup.sh rojo"
   },
   "nodemonConfig": {
     "ext": "ts,tsx,json",

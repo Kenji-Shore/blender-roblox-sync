@@ -4,6 +4,7 @@ import ReceiveMessagesThread from "../receiveMessages";
 interface MaskFormatData {
     type: "mask";
     mask: string;
+    invert?: boolean;
     data: ProcessFormats.FormatData;
 }
 export declare function read(receiveThread: ReceiveMessagesThread, args: defined[], formatData: MaskFormatData, masks: Map<string, boolean>): void;

@@ -57,6 +57,7 @@ local function transformFormat(rawFormatData, requiredType)
 				return {
 					type = "mask",
 					mask = rawFormatData.mask,
+					invert = rawFormatData.invert,
 					data = data,
 				}
 			elseif rawFormatData["repeat"] ~= nil then
@@ -146,7 +147,7 @@ local totalMessages = #rawMessages
 local sendMessageIds = {}
 local receiveMessageIds = {}
 local messageFormats = {}
-local SEND_LIMIT = messageFormatsFile.send_limit
+local SEND_LIMIT = 20000000
 local messageIdFormat = getFormatForCount(totalMessages)
 for i = 0, totalMessages - 1 do
 	local rawMessage = rawMessages[i + 1]

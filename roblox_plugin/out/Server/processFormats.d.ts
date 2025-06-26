@@ -45,6 +45,7 @@ export type FormatData = Values<{
 } | {
     type: "mask";
     mask: string;
+    invert?: boolean;
     data: FormatData;
 } | {
     type: "repeat";
@@ -58,7 +59,7 @@ export declare function unlistenMessage(messageId: number, callback: Callback): 
 export declare const sendMessageIds: Map<string, number>;
 export declare const receiveMessageIds: Map<string, number>;
 export declare const messageFormats: FormatData[];
-export declare const SEND_LIMIT: number;
+export declare const SEND_LIMIT = 20000000;
 export declare const messageIdFormat: CountFormat;
 export declare function deepcopy<T>(object: T): T;
 type ReadFunc = (receiveThread: ReceiveMessagesThread, args: defined[], formatData: FormatData, masks: Map<string, boolean>) => void;
