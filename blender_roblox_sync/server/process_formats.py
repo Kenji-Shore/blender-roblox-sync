@@ -104,25 +104,27 @@ def register(utils, package):
     def unlisten_message(message_id, callback):
         message_listeners[message_id].remove(callback)
 
-    with pathlib.Path(__file__).parent.joinpath("message_formats.json").open() as message_formats_file:
-        file_json = json.load(message_formats_file)
-        messages = file_json["messages"]
+    global SEND_LIMIT
+    SEND_LIMIT = 20000000
+    # with pathlib.Path(__file__).parent.joinpath("message_formats.json").open() as message_formats_file:
+    #     file_json = json.load(message_formats_file)
+    #     messages = file_json["messages"]
         
-        total_messages = len(messages)
-        for i in range(total_messages):
-            message = messages[i]
-            message_name = message["name"]
-            if message["sender"] == "python":
-                send_message_ids[message_name] = i
-            else:
-                receive_message_ids[message_name] = i
-                message_listeners[i] = []
-            message_formats[i] = transform_format(message["data"])
+    #     total_messages = len(messages)
+    #     for i in range(total_messages):
+    #         message = messages[i]
+    #         message_name = message["name"]
+    #         if message["sender"] == "python":
+    #             send_message_ids[message_name] = i
+    #         else:
+    #             receive_message_ids[message_name] = i
+    #             message_listeners[i] = []
+    #         message_formats[i] = transform_format(message["data"])
 
-        global message_id_format
-        global SEND_LIMIT
-        message_id_format = get_format_for_count(total_messages)
-        SEND_LIMIT = 20000000
+    #     global message_id_format
+    #     message_id_format = get_format_for_count(total_messages)
+    global message_id_format
+    message_id_format = get_format_for_count(1)
 
     global read_funcs
     global write_funcs

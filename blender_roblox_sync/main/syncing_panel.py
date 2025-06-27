@@ -23,6 +23,12 @@ def register(utils, package):
     bpy.types.Scene.currently_syncing = bpy.props.CollectionProperty(type=SyncingAsset)
     bpy.types.Scene.currently_syncing_index = bpy.props.IntProperty(default=0)
 
+    class SyncingAssetPrefs(bpy.types.PropertyGroup):
+        name: bpy.props.StringProperty()
+        file: bpy.props.StringProperty()
+        asset_type_str: bpy.props.StringProperty()
+        is_paused: bpy.props.BoolProperty()
+        
     class VIEW3D_OT_toggle_sync(bpy.types.Operator):
         bl_idname = "view3d.toggle_sync"
         bl_label = "Toggle Syncing Object"
@@ -174,6 +180,11 @@ def register(utils, package):
             VIEW3D_OT_sync_selected,
             VIEW3D_OT_sync_scene,
             VIEW3D_OT_toggle_sync,
+            SyncingAssetPrefs,
         ),
+        "prefs": {
+            "syncing_list": bpy.props.CollectionProperty(type=SyncingAssetPrefs),
+            "syncing_index": bpy.props.IntProperty(default=0)
+        },
         "unregister": unregister
     }

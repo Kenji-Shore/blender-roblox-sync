@@ -11,18 +11,49 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import bpy, queue, importlib, pathlib, inspect, uuid, sys
+import bpy, queue, importlib, pathlib, inspect, uuid, sys, copy
 from contextlib import contextmanager
 
+property_type = type(bpy.props.IntProperty())
+def record_prefs(prefs):
+    return_prefs = {}
+    for pref_name, pref_annotation in prefs.__annotations__.items():
+        if type(pref_annotation) is property_type:
+            pref_value = getattr(prefs, pref_name)
+            if isinstance(pref_value, bpy.types.bpy_prop_collection):
+                new_pref_value = []
+                for property_group in pref_value.values():
+                    new_pref_value.append(record_prefs(property_group))
+                pref_value = new_pref_value
+            elif hasattr(pref_value, "__annotations__"):
+                pref_value = record_prefs(pref_value)
+            return_prefs[pref_name] = pref_value
+    return return_prefs
+
+def restore_prefs(prefs, recorded_prefs):
+    for pref_name, pref_value in recorded_prefs.items():
+        if hasattr(prefs, pref_name):
+            match pref_value:
+                case list():
+                    collection_prop = getattr(prefs, pref_name)
+                    for property_group in pref_value:
+                        restore_prefs(collection_prop.add(), property_group)
+                case dict():
+                    restore_prefs(getattr(prefs, pref_name), pref_value)
+                case _:
+                    setattr(prefs, pref_name, pref_value)
+            
 class Utils:
     def load_addon(self, root_package, root_file_path_name):
-        self.__loaded_addons.append(root_package)
-        root_file_path = pathlib.Path(root_file_path_name)
-        self.__lookup_package[root_file_path] = root_package
-        for module_name, module in self.glob_from_parent(root_file_path_name, "**/*.py").items():
-            if module_name in self.__modules:
-                raise Exception("Duplicate module name detected!")
-            self.__modules[module_name] = (module, root_package)
+        if not root_package in self.__loaded_addons:
+            root_file_path = pathlib.Path(root_file_path_name)
+            self.__loaded_addons.append(root_package)
+            self.addon_paths.append(root_file_path.parent)
+            self.__lookup_package[root_file_path] = root_package
+            for module_name, module in self.glob_from_parent(root_file_path_name, "**/*.py").items():
+                if module_name in self.__modules:
+                    raise Exception("Duplicate module name detected!")
+                self.__modules[module_name] = (module, root_package)
 
     def import_module(self, module_name):
         if module_name in self.__modules:
@@ -41,6 +72,11 @@ class Utils:
                         if "threads" in returns:
                             for thread in returns["threads"]:
                                 thread.start()
+                        if "prefs" in returns:
+                            for pref_name, property_def in returns["prefs"].items():
+                                self.__prefs_props[pref_name] = property_def
+                        if "prefs_draw" in returns:
+                            self.__prefs_draws.append(returns["prefs_draw"])
                         self.__registered_modules_returns.append(returns)
                 self.__registered_modules.append(module_name)
                 self.__dependency_stack.remove(module_name)
@@ -149,7 +185,8 @@ class Utils:
         finally:
             self.__depsgraph_paused -= 1
         
-    def register(self):
+    def register(self, recorded_prefs=None):
+        self.addon_paths = []
         self.__loaded_addons = []
         self.__lookup_package = {}
         self.__modules = {}
@@ -204,12 +241,39 @@ class Utils:
             self.listen_timer(deferred_mode_updates, persistent=True)
         )
 
+        self.__prefs_props = {}
+        self.__prefs_draws = []
+
         self.load_addon(__package__, __file__)
-        self.import_module("load_extensions")
+        if recorded_prefs:
+            for extension in recorded_prefs["extension_list"]:
+                self.load_addon(extension["root_package"], extension["root_file_path_name"])
         for module_name in self.__modules.keys():
             self.import_module(module_name)
 
+        prefs_draws = self.__prefs_draws
+        class AddonPrefs(bpy.types.AddonPreferences):
+            bl_idname = __package__
+            def draw(self, context):
+                layout = self.layout
+                for draw_func in prefs_draws:
+                    draw_func(self, layout)
+        for pref_name, property_def in self.__prefs_props.items():
+            AddonPrefs.__annotations__[pref_name] = property_def
+        self.__prefs_props = None
+        self.__prefs_draws = None
+        self.__addon_prefs_class = AddonPrefs
+
+        bpy.utils.register_class(self.__addon_prefs_class)
+        self.prefs = bpy.context.preferences.addons[__package__].preferences
+
+        for returns in self.__registered_modules_returns:
+            if "post_registration" in returns:
+                returns["post_registration"]()
+
     def unregister(self):
+        recorded_prefs = record_prefs(self.prefs) if self.prefs else None
+
         self.__reload_flag = None
         for listener in self.__listeners:
             self.unlisten(listener)
@@ -226,19 +290,23 @@ class Utils:
             if "listeners" in returns:
                 for listener in returns["listeners"]:
                     self.unlisten(listener)
-    
+        
+        if self.__addon_prefs_class:
+            bpy.utils.unregister_class(self.__addon_prefs_class)
+        return recorded_prefs
+
     def reload(self):
         reload_flag = uuid.uuid4()
         self.__reload_flag = reload_flag
         def delayed_reload():
             if self.__reload_flag == reload_flag:
-                self.unregister()
+                recorded_prefs = self.unregister()
                 for loaded_module_name in tuple(sys.modules):
                     for package_name in self.__loaded_addons:
                         if loaded_module_name.startswith(package_name) and (package_name != package_name):
                             del sys.modules[loaded_module_name]
                             break
-                self.register()
+                self.register(recorded_prefs)
         bpy.app.timers.register(delayed_reload)
 
 def register():
