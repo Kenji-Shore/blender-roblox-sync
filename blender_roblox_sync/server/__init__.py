@@ -9,16 +9,12 @@ def register(utils, package):
     TIMEOUT_DURATION = 1
 
     global hook
-    def hook(message_name, callback):
-        assert message_name in process_formats.receive_message_ids
-        message_id = process_formats.receive_message_ids[message_name]
-        process_formats.listen_message(message_id, callback)
     global unhook
-    def unhook(message_name, callback):
-        assert message_name in process_formats.receive_message_ids
-        message_id = process_formats.receive_message_ids[message_name]
-        process_formats.unlisten_message(message_id, callback)
     global fire
+    def hook(message_name, callback):
+        process_formats.message_listeners[message_name].append(callback)
+    def unhook(message_name, callback):
+        process_formats.message_listeners[message_name].remove(callback)
     def fire(message_name, *args):
         send_messages.send_message(message_name, *args)
 

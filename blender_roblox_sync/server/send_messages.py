@@ -5,9 +5,7 @@ def register(utils, package):
 
     class SendMessagesThread(PauseThread):
         def send_message(self, message_name, *args):
-            assert message_name in process_formats.send_message_ids
-            message_id = process_formats.send_message_ids[message_name]
-            self.args_queued.append((message_id,) + args)
+            self.args_queued.append((message_name,) + args)
             self.unpause()
         
         def write_buffer(self, data, data_size):
@@ -41,9 +39,9 @@ def register(utils, package):
                 if len(self.args_queued) == 0:
                     self.pause()
                 args = self.args_queued.pop(0)
-                message_id = args[0]
-                self.write_buffer(process_formats.message_id_format.pack(message_id), process_formats.message_id_format.size)
-                self.parse(args, 1, process_formats.message_formats[message_id])
+                message_name = args[0]
+                args_count = process_formats.write_funcs["str"](self, args, 0, None)
+                self.parse(args, args_count, process_formats.message_formats[message_name])
                 self.buffers_queued.append(b"".join(self.buffer))
                 self.buffer = []
                 self.buf_len = 0

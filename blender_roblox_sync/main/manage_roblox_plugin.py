@@ -1,7 +1,6 @@
 import bpy, shutil, platform, pathlib
 
 def register(utils, package):
-    
     PLUGIN_NAME = "roblox_plugin.rbxm"
     PLUGINS_DIR = pathlib.Path.home()
     match platform.system():

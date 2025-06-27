@@ -1,6 +1,9 @@
-import struct, json, math, pathlib
+import struct, json, math
 
 def register(utils, package):
+    global SEND_LIMIT
+    SEND_LIMIT = 20000000
+    MESSAGE_FORMATS_NAME = "message_formats"
     DATA_TYPES = {
         "u8": "B",
         "i8": "b",
@@ -12,6 +15,9 @@ def register(utils, package):
         "f64": "d",
     }
     
+    count_formats = (struct.Struct("<B"), struct.Struct("<H"), struct.Struct("<I"))
+    def get_format_for_count(count):
+        return count_formats[min(math.ceil(math.log(2 * max(math.log(count, 256), 1), 2)) - 1, 2)]
     def transform_format(format_data, required_type = None):
         parsed_type = type(format_data)
         assert (not required_type) or (parsed_type is required_type)
@@ -85,46 +91,10 @@ def register(utils, package):
                 format_data = format_data[0]
         return format_data
 
-    count_formats = (struct.Struct("<B"), struct.Struct("<H"), struct.Struct("<I"))
-    def get_format_for_count(count):
-        return count_formats[min(math.ceil(math.log(2 * max(math.log(count, 256), 1), 2)) - 1, 2)]
-
     global message_formats
-    global send_message_ids
-    global receive_message_ids
+    global message_listeners
     message_formats = {}
-    send_message_ids = {}
-    receive_message_ids = {}
-
     message_listeners = {}
-    global listen_message
-    global unlisten_message
-    def listen_message(message_id, callback):
-        message_listeners[message_id].append(callback)
-    def unlisten_message(message_id, callback):
-        message_listeners[message_id].remove(callback)
-
-    global SEND_LIMIT
-    SEND_LIMIT = 20000000
-    # with pathlib.Path(__file__).parent.joinpath("message_formats.json").open() as message_formats_file:
-    #     file_json = json.load(message_formats_file)
-    #     messages = file_json["messages"]
-        
-    #     total_messages = len(messages)
-    #     for i in range(total_messages):
-    #         message = messages[i]
-    #         message_name = message["name"]
-    #         if message["sender"] == "python":
-    #             send_message_ids[message_name] = i
-    #         else:
-    #             receive_message_ids[message_name] = i
-    #             message_listeners[i] = []
-    #         message_formats[i] = transform_format(message["data"])
-
-    #     global message_id_format
-    #     message_id_format = get_format_for_count(total_messages)
-    global message_id_format
-    message_id_format = get_format_for_count(1)
 
     global read_funcs
     global write_funcs
@@ -134,3 +104,19 @@ def register(utils, package):
         module_dict = module.__dict__
         read_funcs[module_name] = module_dict["read"]
         write_funcs[module_name] = module_dict["write"]
+
+    def load_message_format(message_format_path):
+        message_name = message_format_path.stem
+        with message_format_path.open() as message_format_file:
+            message_listeners[message_name] = []
+            message_formats[message_name] = transform_format(json.load(message_format_file))
+
+    def post_registration():
+        for addon_path in utils.addon_paths:
+            message_formats_path = addon_path.joinpath(MESSAGE_FORMATS_NAME)
+            if message_formats_path.is_dir():
+                for message_format_path in message_formats_path.glob("**/*.json"):
+                    load_message_format(message_format_path)
+    return {
+        "post_registration": post_registration
+    }

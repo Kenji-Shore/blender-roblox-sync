@@ -41,9 +41,9 @@ def register(utils, package):
 
             self.stop_thread = False
             while not self.stop_thread:
-                message_id, = process_formats.message_id_format.unpack_from(*self.read_buffer(process_formats.message_id_format.size))
-                args = self.parse(process_formats.message_formats[message_id])
-                for callback in process_formats.message_listeners[message_id]:
+                message_name, = process_formats.read_funcs["str"](self, None)
+                args = self.parse(process_formats.message_formats[message_name])
+                for callback in process_formats.message_listeners[message_name]:
                     thread = threading.Thread(target=callback, args=copy.deepcopy(args))
                     thread.start()
 
