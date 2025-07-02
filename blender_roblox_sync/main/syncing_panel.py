@@ -4,6 +4,7 @@ def register(utils, package):
     manage_roblox_plugin = utils.import_module("manage_roblox_plugin")
     server = utils.import_module("server")
     process_assets = utils.import_module("process_assets")
+    roblox_opencloud = utils.import_module("roblox_opencloud")
 
     syncing = False
     class VIEW3D_OT_toggle_roblox_sync(bpy.types.Operator):
@@ -97,6 +98,17 @@ def register(utils, package):
             return False
         
         def execute(self, context):
+            def response_callback(success, **kwargs):
+                if success:
+                    print(kwargs["response_dict"])
+                else:
+                    print(kwargs["reason"])
+            roblox_opencloud.request("get",
+                f"https://apis.roblox.com/assets/v1/assets/{5580068799}",
+                scopes=("asset:read", "asset:write"),
+                callback=response_callback,
+            )
+
             areas = [area for area in context.window.screen.areas if area.type == 'OUTLINER']
             if len(areas) > 0:
                 area = areas[0]

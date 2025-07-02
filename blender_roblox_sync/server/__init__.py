@@ -1,11 +1,12 @@
 import time, threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 def register(utils, package):
     process_formats = utils.import_module("process_formats")
     receive_messages = utils.import_module("receive_messages")
     send_messages = utils.import_module("send_messages")
 
+    PORT = 50520
     TIMEOUT_DURATION = 1
 
     global hook
@@ -43,7 +44,7 @@ def register(utils, package):
             last_received = time.time()
             set_is_connected(True)
 
-            content_length = int(self.headers['Content-Length'])
+            content_length = int(self.headers["Content-Length"])
             if content_length > 0:
                 receive_messages.receive_message(self.rfile.read(content_length))
 
@@ -53,7 +54,7 @@ def register(utils, package):
             send_buffer = send_messages.fetch_send_buffer()
             if send_buffer:
                 self.wfile.write(send_buffer)
-    class Server(ThreadingHTTPServer):
+    class Server(HTTPServer):
         request_queue_size = 128
         logging = False
 
@@ -62,7 +63,7 @@ def register(utils, package):
                 set_is_connected(False)    
     class ServerThread(threading.Thread):
         def run(self):
-            self.server = Server(('localhost', 50520), ServerHandler)
+            self.server = Server(("localhost", PORT), ServerHandler)
             self.server.serve_forever()
         
         def stop(self):

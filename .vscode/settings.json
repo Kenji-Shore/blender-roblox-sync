@@ -33,7 +33,7 @@
         "**/*.project.json": true,
         "**/aftman.toml": true,
 
-        "**/wheels": true,
+        "**/wheels": false,
         "**/__pycache__": true,
         "**/*.blend1": true,
 	},

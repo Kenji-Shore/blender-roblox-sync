@@ -11,7 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import bpy, queue, importlib, pathlib, inspect, uuid, sys, copy
+import bpy, queue, importlib, pathlib, inspect, uuid, sys
 from contextlib import contextmanager
 
 property_type = type(bpy.props.IntProperty())
@@ -313,6 +313,7 @@ def register():
     global utils
     utils = Utils()
     utils.register()
+    bpy.context.preferences.use_preferences_save = True #this is necessary to get programmatically-set addonprefs to save on close
 
 def unregister():
     global utils
