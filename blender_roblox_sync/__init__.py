@@ -51,9 +51,10 @@ class Utils:
             self.addon_paths.append(root_file_path.parent)
             self.__lookup_package[root_file_path] = root_package
             for module_name, module in self.glob_from_parent(root_file_path_name, "**/*.py").items():
-                if module_name in self.__modules:
-                    raise Exception("Duplicate module name detected!")
-                self.__modules[module_name] = (module, root_package)
+                if hasattr(module, "register"):
+                    if module_name in self.__modules:
+                        raise Exception("Duplicate module name detected!")
+                    self.__modules[module_name] = (module, root_package)
 
     def import_module(self, module_name):
         if module_name in self.__modules:
@@ -63,21 +64,20 @@ class Utils:
                     raise Exception("Circular module import detected!")
                 
                 self.__dependency_stack.append(module_name)
-                if hasattr(module, "register"):
-                    returns = getattr(module, "register")(self, root_package)
-                    if returns:
-                        if "classes" in returns:
-                            for cls in returns["classes"]:
-                                bpy.utils.register_class(cls)
-                        if "threads" in returns:
-                            for thread in returns["threads"]:
-                                thread.start()
-                        if "prefs" in returns:
-                            for pref_name, property_def in returns["prefs"].items():
-                                self.__prefs_props[pref_name] = property_def
-                        if "prefs_draw" in returns:
-                            self.__prefs_draws.append(returns["prefs_draw"])
-                        self.__registered_modules_returns.append(returns)
+                returns = getattr(module, "register")(self, root_package)
+                if returns:
+                    if "classes" in returns:
+                        for cls in returns["classes"]:
+                            bpy.utils.register_class(cls)
+                    if "threads" in returns:
+                        for thread in returns["threads"]:
+                            thread.start()
+                    if "prefs" in returns:
+                        for pref_name, property_def in returns["prefs"].items():
+                            self.__prefs_props[pref_name] = property_def
+                    if "prefs_draw" in returns:
+                        self.__prefs_draws.append(returns["prefs_draw"])
+                    self.__registered_modules_returns.append(returns)
                 self.__registered_modules.append(module_name)
                 self.__dependency_stack.remove(module_name)
             return module

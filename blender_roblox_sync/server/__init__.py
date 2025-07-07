@@ -1,5 +1,4 @@
-import time, threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import time, threading, http.server
 
 def register(utils, package):
     process_formats = utils.import_module("process_formats")
@@ -31,13 +30,13 @@ def register(utils, package):
                 is_connected_area.tag_redraw()
 
     last_received = time.time()
-    class ServerHandler(BaseHTTPRequestHandler):
+    class ServerHandler(http.server.BaseHTTPRequestHandler):
         server_version = ""
         sys_version = ""
 
         def log_message(self, format, *args):
             if self.server.logging:
-                BaseHTTPRequestHandler.log_message(self, format, *args)
+                http.server.BaseHTTPRequestHandler.log_message(self, format, *args)
         
         def do_POST(self):
             nonlocal last_received
@@ -54,7 +53,7 @@ def register(utils, package):
             send_buffer = send_messages.fetch_send_buffer()
             if send_buffer:
                 self.wfile.write(send_buffer)
-    class Server(HTTPServer):
+    class Server(http.server.HTTPServer):
         request_queue_size = 128
         logging = False
 

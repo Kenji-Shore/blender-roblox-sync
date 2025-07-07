@@ -14,5 +14,5 @@ def write(self, args, args_count, format_data, **masks):
 	str_value = args[args_count]
 	str_len = len(str_value)
 	self.write_buffer(pack(str_len), format_size)
-	self.write_buffer(struct.pack(f"<{str_len}s"), str_value.encode("utf-8"), str_len)
+	self.write_buffer(struct.pack(f"<{str_len}s", str_value.encode("utf-8")), str_len)
 	return args_count + 1

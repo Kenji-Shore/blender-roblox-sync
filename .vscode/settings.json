@@ -20,7 +20,7 @@
 		"**/.gitignore": true,
 		"**/.DS_Store": true,
 
-		"**/package*.json": false,
+		"**/package*.json": true,
 		"**/pnpm*.yaml": true,
 
 		"**/*.tsbuildinfo": true,
