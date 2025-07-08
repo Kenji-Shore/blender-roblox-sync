@@ -17,16 +17,16 @@
     "editor.detectIndentation": true,
 	"files.exclude": {
 		"**/.git": true,
-		"**/.gitignore": true,
+		"**/.gitignore": false,
 		"**/.DS_Store": true,
 
-		"**/package*.json": true,
+		"**/package*.json": false,
 		"**/pnpm*.yaml": true,
 
 		"**/*.tsbuildinfo": true,
 		"**/node_modules": true,
 		"**/include": true,
-		"**/out": true,
+		"**/out": false,
 		"**/tsconfig*.json": true,
 		"**/eslint.config.mjs": true,
 

@@ -6,6 +6,7 @@
     "watch": "nodemon --watch src --exec ../setup.sh rojo"
   },
   "nodemonConfig": {
+    "ignore": ["messageFormats/**"],
     "ext": "ts,tsx,json",
     "delay": 25
   },
