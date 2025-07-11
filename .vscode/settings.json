@@ -17,16 +17,16 @@
     "editor.detectIndentation": true,
 	"files.exclude": {
 		"**/.git": true,
-		"**/.gitignore": false,
+		"**/.gitignore": true,
 		"**/.DS_Store": true,
 
-		"**/package*.json": false,
+		"**/package*.json": true,
 		"**/pnpm*.yaml": true,
 
 		"**/*.tsbuildinfo": true,
 		"**/node_modules": true,
 		"**/include": true,
-		"**/out": false,
+		"**/out": true,
 		"**/tsconfig*.json": true,
 		"**/eslint.config.mjs": true,
 
@@ -36,6 +36,9 @@
         "**/wheels": false,
         "**/__pycache__": true,
         "**/*.blend1": true,
+		"readme.md": true,
+
+		"**/messageFormats": true,
 	},
 	"explorer.excludeGitIgnore": false,
 	"roblox-ts.command.npm.useNpmScripts": true,

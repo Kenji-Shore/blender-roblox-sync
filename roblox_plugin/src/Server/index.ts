@@ -40,9 +40,11 @@ const connection = RunService.Heartbeat.Connect(() => {
 			});
 		} catch (error) {
 			retryString = sendString;
-			print(error === "HttpError: ConnectFail");
-			if (error === "Number of requests exceeded limit") {
-				connection.Disconnect();
+			if (error !== "HttpError: ConnectFail") {
+				print(error);
+				if (error === "Number of requests exceeded limit") {
+					connection.Disconnect();
+				}
 			}
 		} finally {
 			if (response) {
