@@ -42,7 +42,7 @@ export default tseslint.config(
                 jsx: true,
                 useJSXTextNode: true,
                 tsconfigRootDir: ".",
-                project: "**/tsconfig.json"
+                project: "tsconfig.json"
             }
         },
 

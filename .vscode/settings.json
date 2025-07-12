@@ -27,6 +27,7 @@
 		"**/node_modules": true,
 		"**/include": true,
 		"**/out": true,
+		"**/*.d.ts": true,
 		"**/tsconfig*.json": true,
 		"**/eslint.config.mjs": true,
 
