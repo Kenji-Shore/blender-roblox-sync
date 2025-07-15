@@ -54,6 +54,7 @@ export default tseslint.config(
             "@typescript-eslint/no-unused-vars": "warn",
             "@typescript-eslint/no-namespace": "off",
             "@typescript-eslint/no-require-imports": "off",
+            "@typescript-eslint/no-empty-object-type": "off",
             "prefer-const": "off",
             "semi": "warn",
             "no-empty": "off",
