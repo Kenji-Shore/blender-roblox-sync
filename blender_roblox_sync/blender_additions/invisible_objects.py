@@ -91,6 +91,15 @@ def register(utils, package):
             edges_batch.draw(edges_shader)
     outline_handle_3d = bpy.types.SpaceView3D.draw_handler_add(draw_callback_3d, (), "WINDOW", "POST_VIEW")
 
+    def draw(layout, context):
+        box = layout.box()
+        active_object = bpy.context.object
+        if active_object:
+            row = box.row()
+            row.prop(active_object, "is_invisible", text="Is Invisible")
+            if active_object.is_invisible:
+                row = box.row()
+                row.prop(active_object, "invisible_color", text="Color")
     def depsgraph_update_post(scene, depsgraph):
         for depsgraph_update in depsgraph.updates:
             id = depsgraph_update.id
@@ -106,5 +115,6 @@ def register(utils, package):
         "listeners": (
             utils.listen_handler("depsgraph_update_post", depsgraph_update_post),
         ),
+        "draw": draw,
         "unregister": unregister
     }

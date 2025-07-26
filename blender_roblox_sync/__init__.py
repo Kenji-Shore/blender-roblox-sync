@@ -11,7 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import bpy, queue, importlib, pathlib, inspect, uuid, sys
+import bpy, queue, importlib, pathlib, inspect, uuid, sys, math, re
 from contextlib import contextmanager
 
 property_type = type(bpy.props.IntProperty())
@@ -50,6 +50,7 @@ class Utils:
             self.__loaded_addons.append(root_package)
             self.addon_paths.append(root_file_path.parent)
             self.__lookup_package[root_file_path] = root_package
+            self.__addon_draws[root_package] = []
             for module_name, module in self.glob_from_parent(root_file_path_name, "**/*.py").items():
                 if hasattr(module, "register"):
                     if module_name in self.__modules:
@@ -77,6 +78,17 @@ class Utils:
                             self.__prefs_props[pref_name] = property_def
                     if "prefs_draw" in returns:
                         self.__prefs_draws.append(returns["prefs_draw"])
+                    if "draw" in returns:
+                        draw = returns["draw"]
+                        addon_draws = self.__addon_draws[root_package]
+                        if not type(draw) is tuple:
+                            draw = (draw, math.inf)
+                        priority = draw[1]
+                        list_len = len(addon_draws)
+                        for i in range(list_len + 1):
+                            if i == list_len or priority <= addon_draws[i][1]:
+                                addon_draws.insert(i, draw)
+                                break
                     self.__registered_modules_returns.append(returns)
                 self.__registered_modules.append(module_name)
                 self.__dependency_stack.remove(module_name)
@@ -184,7 +196,22 @@ class Utils:
             yield True
         finally:
             self.__depsgraph_paused -= 1
-        
+    
+    def __create_panel(self, root_package_name, addon_draws):
+        store_addon_draws = addon_draws.copy()
+        def panelDraw(self, context):
+            layout = self.layout
+            for draw, _ in store_addon_draws:
+                draw(layout, context)
+        panelClass = type(f"VIEW3D_PT_{root_package_name}", (bpy.types.Panel,), {
+            "bl_space_type": "VIEW_3D",
+            "bl_region_type": "UI",
+            "bl_category": root_package_name,
+            "bl_label": root_package_name,
+            "draw": panelDraw
+        })
+        self.__addon_panels.append(panelClass)
+
     def register(self, recorded_prefs=None):
         self.addon_paths = []
         self.__loaded_addons = []
@@ -244,12 +271,21 @@ class Utils:
         self.__prefs_props = {}
         self.__prefs_draws = []
 
+        self.__addon_draws = {}
+        self.__addon_panels = []
+
         self.load_addon(__package__, __file__)
         if recorded_prefs:
             for extension in recorded_prefs["extension_list"]:
                 self.load_addon(extension["root_package"], extension["root_file_path_name"])
         for module_name in self.__modules.keys():
             self.import_module(module_name)
+
+        for root_package, addon_draws in self.__addon_draws.items():
+            if len(addon_draws) > 0:
+                match = re.search("[^\.]*$", root_package)
+                self.__create_panel(match.group(0) if match else "", addon_draws)
+        self.__addon_draws = None
 
         prefs_draws = self.__prefs_draws
         class AddonPrefs(bpy.types.AddonPreferences):
@@ -265,6 +301,8 @@ class Utils:
         self.__addon_prefs_class = AddonPrefs
 
         bpy.utils.register_class(self.__addon_prefs_class)
+        for addon_panel in self.__addon_panels:
+            bpy.utils.register_class(addon_panel)
         self.prefs = bpy.context.preferences.addons[__package__].preferences
 
         for returns in self.__registered_modules_returns:
@@ -293,6 +331,8 @@ class Utils:
         
         if self.__addon_prefs_class:
             bpy.utils.unregister_class(self.__addon_prefs_class)
+            for addon_panel in self.__addon_panels:
+                bpy.utils.unregister_class(addon_panel)
         return recorded_prefs
 
     def reload(self):

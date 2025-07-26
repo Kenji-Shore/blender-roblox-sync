@@ -26,9 +26,9 @@
 		"**/*.tsbuildinfo": true,
 		"**/node_modules": true,
 		"**/include": true,
-		"**/out": true,
+		"**/out": false,
 		"**/*.d.ts": true,
-		"**/tsconfig*.json": true,
+		"**/tsconfig*.json": false,
 		"**/eslint.config.mjs": true,
 
         "**/*.project.json": true,

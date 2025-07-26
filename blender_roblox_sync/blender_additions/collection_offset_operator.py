@@ -76,6 +76,10 @@ def register(utils, package):
     class WidgetGroup2(bpy.types.GizmoGroup, TestClass):
         bl_idname = "meowmeow2"
         bl_options = TestClass.bl_options | {"DEPTH_3D"}
+    
+    def draw(layout, context):
+        layout.label(text="Currently Syncing:")
     return {
-        "classes": (WidgetGroup, WidgetGroup2,)
+        "classes": (WidgetGroup, WidgetGroup2,),
+        "draw": draw
     }

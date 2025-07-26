@@ -17,17 +17,17 @@ compile_roblox_plugin ()
 	echo_col 2 "rbxtsc: successfully compiled $BL_NAME roblox plugin!" 
 }
 
-brew install fswatch &
+brew install fswatch > /dev/null &
 (
-	python3 -m pip install --upgrade pip
-	python3 -m pip install fake-bpy-module
+	python3 -m pip install --upgrade pip > /dev/null
+	python3 -m pip install fake-bpy-module > /dev/null
 ) &
 wait
 
 (
 	#setup and compile roblox plugin for blender addon
 	cd $BL_RBLX_PATH
-	pnpm install
+	pnpm install > /dev/null
 	compile_roblox_plugin
 	fswatch -o -l 0.1 "$BL_RBLX_PATH/src" -e "$FMT_RBLX_PATH" | while read num; do
 		compile_roblox_plugin

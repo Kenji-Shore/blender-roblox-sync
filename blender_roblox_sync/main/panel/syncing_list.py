@@ -1,28 +1,11 @@
 import bpy
 
 def register(utils, package):
-    manage_roblox_plugin = utils.import_module("manage_roblox_plugin")
-    server = utils.import_module("server")
-    process_assets = utils.import_module("process_assets")
-    roblox_opencloud = utils.import_module("roblox_opencloud")
+    toggle_sync = utils.import_module("toggle_sync")
 
-    syncing = False
-    class VIEW3D_OT_toggle_roblox_sync(bpy.types.Operator):
-        bl_idname = "view3d.toggle_roblox_sync"
-        bl_label = "Toggle Roblox Sync"
-        bl_options = {"REGISTER", "UNDO"}
-
-        def execute(self, context):
-            nonlocal syncing
-            syncing = not syncing
-            return {"FINISHED"}
-    
     class SyncingAsset(bpy.types.PropertyGroup):
         is_scene: bpy.props.BoolProperty()
         id: bpy.props.PointerProperty(type=bpy.types.ID)
-    bpy.utils.register_class(SyncingAsset)
-    bpy.types.Scene.currently_syncing = bpy.props.CollectionProperty(type=SyncingAsset)
-    bpy.types.Scene.currently_syncing_index = bpy.props.IntProperty(default=0)
 
     class SyncingAssetPrefs(bpy.types.PropertyGroup):
         name: bpy.props.StringProperty()
@@ -66,7 +49,6 @@ def register(utils, package):
                 layout.operator("view3d.toggle_sync", text="", icon="PAUSE", emboss=False)
         def draw_filter(self, context, layout):
             return
-    bpy.utils.register_class(VIEW3D_UL_sync_list)
 
     class VIEW3D_OT_sync_scene(bpy.types.Operator):
         bl_idname = "view3d.sync_scene"
@@ -98,17 +80,6 @@ def register(utils, package):
             return False
         
         def execute(self, context):
-            def response_callback(success, **kwargs):
-                if success:
-                    print(kwargs["response_dict"])
-                else:
-                    print(kwargs["reason"])
-            roblox_opencloud.request("get",
-                f"https://apis.roblox.com/assets/v1/assets/{5580068799}",
-                scopes=("asset:read", "asset:write"),
-                callback=response_callback,
-            )
-
             areas = [area for area in context.window.screen.areas if area.type == 'OUTLINER']
             if len(areas) > 0:
                 area = areas[0]
@@ -123,72 +94,23 @@ def register(utils, package):
                         syncing_id.id = id
             return {"FINISHED"}
 
-    class VIEW3D_OT_OTHER_OPERATOR(bpy.types.Operator):
-        bl_idname = "view3d.hgf_other_operator"
-        bl_label = "HGF Other Operator"
-        bl_options = {"REGISTER", "UNDO"}
+    def draw(layout, context):
+        box = layout.box()
+        box.enabled = not toggle_sync.is_syncing
+        col = box.column(align=True)
+        col.label(text="Currently Syncing:")
+        col.template_list("VIEW3D_UL_sync_list", "", context.scene, "currently_syncing", context.scene, "currently_syncing_index", type="DEFAULT", rows=2, maxrows=4, sort_lock=True)
 
-        def execute(self, context):
-            process_assets.process()
-            return {"FINISHED"}
-
-    class VIEW3D_PT_roblox_sync(bpy.types.Panel):
-        bl_space_type = "VIEW_3D"
-        bl_region_type = "UI"
-        bl_category = "Roblox"
-        bl_label = "Roblox Sync"
-        
-        def draw(self, context):
-            server.is_connected_area = context.area
-            layout = self.layout
-
-            box = layout.box()
-            box.enabled = not syncing
-            col = box.column(align=True)
-            col.label(text="Currently Syncing:")
-            col.template_list("VIEW3D_UL_sync_list", "", context.scene, "currently_syncing", context.scene, "currently_syncing_index", type="DEFAULT", rows=2, maxrows=4, sort_lock=True)
-
-            split = col.split(factor=0.5, align=True)
-            split.operator("view3d.sync_selected", text="+ Selected ")
-            split.operator("view3d.sync_scene", text="+ Scene ")
-
-            can_sync = False
-            sync_text = ""
-            if not manage_roblox_plugin.is_valid_dir:
-                sync_text = "Invalid Plugin Directory"
-            elif not server.is_connected:
-                sync_text = "Roblox Studio Not Open"
-            else:
-                sync_text = "Stop Sync" if syncing else "Start Sync"
-                can_sync = True
-            
-            col2 = layout.column()
-            row = col2.row()
-            row.operator("view3d.toggle_roblox_sync", text=sync_text)
-            row.enabled = can_sync
-
-            row2 = col2.row()
-            row2.progress(factor=0.5)
-            row2.scale_y = 0.4
-
-            box = layout.box()
-            active_object = bpy.context.object
-            if active_object:
-                row = box.row()
-                row.prop(active_object, "is_invisible", text="Is Invisible")
-                if active_object.is_invisible:
-                    row = box.row()
-                    row.prop(active_object, "invisible_color", text="Color")
-            # layout.operator("view3d.hgf_other_operator", text="test button")
-    
-    def unregister():
-        bpy.utils.unregister_class(SyncingAsset)
-        bpy.utils.unregister_class(VIEW3D_UL_sync_list)
+        split = col.split(factor=0.5, align=True)
+        split.operator("view3d.sync_selected", text="+ Selected ")
+        split.operator("view3d.sync_scene", text="+ Scene ")
+    def post_registration():
+        bpy.types.Scene.currently_syncing = bpy.props.CollectionProperty(type=SyncingAsset)
+        bpy.types.Scene.currently_syncing_index = bpy.props.IntProperty(default=0)
     return {
         "classes": (
-            VIEW3D_OT_toggle_roblox_sync, 
-            VIEW3D_PT_roblox_sync, 
-            VIEW3D_OT_OTHER_OPERATOR, 
+            SyncingAsset,
+            VIEW3D_UL_sync_list,
             VIEW3D_OT_sync_selected,
             VIEW3D_OT_sync_scene,
             VIEW3D_OT_toggle_sync,
@@ -198,5 +120,6 @@ def register(utils, package):
             "syncing_list": bpy.props.CollectionProperty(type=SyncingAssetPrefs),
             "syncing_index": bpy.props.IntProperty(default=0)
         },
-        "unregister": unregister
+        "draw": (draw, 0),
+        "post_registration": post_registration
     }
