@@ -47,8 +47,10 @@ class Utils:
     def load_addon(self, root_package, root_file_path_name):
         if not root_package in self.__loaded_addons:
             root_file_path = pathlib.Path(root_file_path_name)
+            addon_path = root_file_path.parent
+
             self.__loaded_addons.append(root_package)
-            self.addon_paths.append(root_file_path.parent)
+            self.addon_paths[root_package] = addon_path
             self.__lookup_package[root_file_path] = root_package
             self.__addon_draws[root_package] = []
             for module_name, module in self.glob_from_parent(root_file_path_name, "**/*.py").items():
@@ -144,35 +146,6 @@ class Utils:
         self.__listen_timers[key] = callback
         return key
 
-    def load_resources(self, file_path, *args):
-        with bpy.data.libraries.load(file_path) as (data_from, data_to):
-            for attr in args:
-                setattr(data_to, attr, getattr(data_from, attr))
-
-        resources = {}
-        temp_dict = {}
-        def add_resources(attr):
-            if len(temp_dict) > 0:
-                if not attr in resources:
-                    resources[attr] = {}
-                resources[attr].update(temp_dict)
-                temp_dict.clear()
-
-        for attr in dir(bpy.data):
-            prop_collection = getattr(bpy.data, attr, None)
-            if isinstance(prop_collection, bpy.types.bpy_prop_collection):
-                for id in prop_collection:
-                    if id.library_weak_reference and (id.library_weak_reference.filepath == file_path):
-                        id.is_runtime_data = True
-                        temp_dict[id.name] = id
-                add_resources(attr)
-        for attr in args:
-            for id in getattr(data_to, attr):
-                id.is_runtime_data = True
-                temp_dict[id.name] = id
-            add_resources(attr)
-        return resources
-
     def unlisten(self, key):
         if key in self.__listen_operators:
             self.__listen_operators.pop(key)
@@ -189,6 +162,61 @@ class Utils:
             if bpy.app.timers.is_registered(callback):
                 bpy.app.timers.unregister(callback)
 
+    def get_resources_path(self, package):
+        addon_path = self.addon_paths[package]
+        resources_path = addon_path.joinpath("resources")
+        if resources_path.is_dir():
+            return resources_path
+    
+    @contextmanager
+    def load_resources(self, file_path, *args):
+        id_names_dict = {}
+        with bpy.data.libraries.load(file_path) as (data_from, data_to):
+            for attr in args:
+                id_names_dict[attr] = getattr(data_from, attr).copy()
+                setattr(data_to, attr, getattr(data_from, attr))
+
+        resources = {}
+        temp_dict = {}
+        def add_resources(attr):
+            if len(temp_dict) > 0:
+                if not attr in resources:
+                    resources[attr] = {}
+                resources[attr].update(temp_dict)
+                temp_dict.clear()
+
+        for attr in dir(bpy.data):
+            prop_collection = getattr(bpy.data, attr, None)
+            if isinstance(prop_collection, bpy.types.bpy_prop_collection):
+                for id in prop_collection:
+                    library_weak_reference = id.library_weak_reference
+                    if library_weak_reference and (library_weak_reference.filepath == file_path):
+                        id_name = library_weak_reference.id_name[2:]
+                        id.is_runtime_data = True
+                        temp_dict[id_name] = id
+                add_resources(attr)
+        for attr in args:
+            loaded_ids = getattr(data_to, attr)
+            id_names = id_names_dict[attr]
+            for i in range(len(loaded_ids)):
+                id = loaded_ids[i]
+                id_name = id_names[i]
+                id.is_runtime_data = True
+                temp_dict[id_name] = id
+            add_resources(attr)
+            
+        try:
+            yield resources
+        finally:
+            for attr in dir(bpy.data):
+                prop_collection = getattr(bpy.data, attr, None)
+                if isinstance(prop_collection, bpy.types.bpy_prop_collection):
+                    for id in prop_collection:
+                        library_weak_reference = id.library_weak_reference
+                        if library_weak_reference and (library_weak_reference.filepath == file_path):
+                            prop_collection.remove(id)
+
+    
     @contextmanager
     def pause_updates(self):
         try:
@@ -213,7 +241,7 @@ class Utils:
         self.__addon_panels.append(panelClass)
 
     def register(self, recorded_prefs=None):
-        self.addon_paths = []
+        self.addon_paths = {}
         self.__loaded_addons = []
         self.__lookup_package = {}
         self.__modules = {}
@@ -309,10 +337,20 @@ class Utils:
             if "post_registration" in returns:
                 returns["post_registration"]()
 
+        post_registration_load_flag = uuid.uuid4()
+        self.__post_registration_load_flag = post_registration_load_flag
+        def post_registration_loaded():
+            if self.__post_registration_load_flag == post_registration_load_flag:
+                for returns in self.__registered_modules_returns:
+                    if "post_registration_loaded" in returns:
+                        returns["post_registration_loaded"]()
+        bpy.app.timers.register(post_registration_loaded)
+
     def unregister(self):
+        self.__post_registration_load_flag = None
+        self.__reload_flag = None
         recorded_prefs = record_prefs(self.prefs) if self.prefs else None
 
-        self.__reload_flag = None
         for listener in self.__listeners:
             self.unlisten(listener)
         self.__registered_modules_returns.reverse()

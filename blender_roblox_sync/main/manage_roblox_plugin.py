@@ -21,7 +21,7 @@ def register(utils, package):
         global is_valid_dir
         is_valid_dir = True
 
-        for addon_path in utils.addon_paths:
+        for addon_path in utils.addon_paths.values():
             addon_name = addon_path.stem
             plugin_path = addon_path.joinpath(PLUGIN_NAME)
             
@@ -36,7 +36,7 @@ def register(utils, package):
             self.plugins_dir = PLUGINS_DIR
         
         if self.last_dir != self.plugins_dir:
-            for addon_path in utils.addon_paths:
+            for addon_path in utils.addon_paths.values():
                 addon_name = addon_path.stem
                 last_path = get_target_path(self.last_dir, addon_name)
                 if last_path:

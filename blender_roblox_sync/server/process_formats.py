@@ -112,7 +112,7 @@ def register(utils, package):
             message_formats[message_name] = transform_format(json.load(message_format_file))
 
     def post_registration():
-        for addon_path in utils.addon_paths:
+        for addon_path in utils.addon_paths.values():
             message_formats_path = addon_path.joinpath(MESSAGE_FORMATS_NAME)
             if message_formats_path.is_dir():
                 for message_format_path in message_formats_path.glob("**/*.json"):
