@@ -112,7 +112,7 @@ def register(utils, package):
         with utils.pause_updates():
             if sculpt_object_name:
                 sculpt_object = bpy.data.objects.get(sculpt_object_name)
-                object_mode = override_mode or bpy.context.active_object.mode
+                object_mode = override_mode or utils.get_mode()
                 if sculpt_object:
                     for object in bpy.context.selected_objects:
                         object.select_set(False)

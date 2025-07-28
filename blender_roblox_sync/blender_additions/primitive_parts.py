@@ -1,28 +1,60 @@
-import bpy, bmesh
+import bpy, bmesh, mathutils
 
 def register(utils, package):
     PRIMITIVE_TYPES = {
         "Block": {
             "icon": "MESH_CUBE",
             "id": 0,
+            "lock_scales": ()
         },
         "Wedge": {
             "icon": "MOD_LATTICE",
             "id": 1,
+            "lock_scales": ()
         },
         "Cylinder": {
             "icon": "MESH_CYLINDER",
             "id": 2,
+            "lock_scales": (0, 1)
         },
         "Sphere": {
             "icon": "MESH_UVSPHERE",
             "id": 3,
+            "lock_scales": (0, 1, 2)
         }
     }
     bpy.types.Object.is_primitive = bpy.props.BoolProperty(default=False)
     bpy.types.Object.primitive_type = bpy.props.EnumProperty(items=[(key, key, "") for key in PRIMITIVE_TYPES.keys()], default="Block")
+    bpy.types.Object.primitive_lock_scale = bpy.props.FloatProperty()
     bpy.types.Scene.insert_primitive_type = bpy.props.EnumProperty(items=[(key, key, "", PRIMITIVE_TYPES[key]["icon"], PRIMITIVE_TYPES[key]["id"]) for key in PRIMITIVE_TYPES.keys()], default="Block")
 
+    def primitive_update_transform(object):
+        try:
+            object.matrix_world
+        except:
+            return
+        with utils.pause_updates():
+            translation, rotation, scale = object.matrix_world.decompose()
+            lock_scale = object.primitive_lock_scale
+
+            new_scale_avg = 0
+            new_scale_count = 0
+            for axis in PRIMITIVE_TYPES[object.primitive_type]["lock_scales"]:
+                new_scale = scale[axis]
+                if new_scale != lock_scale:
+                    new_scale_avg += new_scale
+                    new_scale_count += 1
+
+            if new_scale_count > 0:
+                lock_scale = new_scale_avg / new_scale_count
+                object.primitive_lock_scale = lock_scale
+            for axis in PRIMITIVE_TYPES[object.primitive_type]["lock_scales"]:
+                scale[axis] = lock_scale
+            for axis in (0, 1, 2):
+                scale[axis] = abs(scale[axis])
+            
+            object.matrix_world = mathutils.Matrix.LocRotScale(translation, rotation, scale)
+        
     class VIEW3D_OT_insert_primitive(bpy.types.Operator):
         bl_idname = "view3d.insert_primitive"
         bl_label = "Insert Primitive"
@@ -39,6 +71,13 @@ def register(utils, package):
             object.name = primitive_type
             primitive_info["bmesh"].to_mesh(object.data)
 
+            scale = object.scale
+            lock_scale = 0
+            for axis in primitive_info["lock_scales"]:
+                lock_scale = max(lock_scale, scale[axis])
+            object.primitive_lock_scale = lock_scale
+            primitive_update_transform(object)
+
             print("inserting", object)
             return {"FINISHED"}
         
@@ -53,12 +92,17 @@ def register(utils, package):
     def primitive_part_updated(depsgraph):
         for depsgraph_update in depsgraph.updates:
             object = depsgraph_update.id
-            if (type(object) is bpy.types.Object) and object.is_primitive:
-                if depsgraph_update.is_updated_transform:
-                    object.matrix_world = object.matrix_world.normalized()
-                    translation, rotation, scale = object.matrix_world.decompose()
-                    object.scale = scale
-                #depsgraph_update.is_updated_geometry)
+            if (type(object) is bpy.types.Object) and object.is_primitive and depsgraph_update.is_updated_transform:
+                primitive_update_transform(object.original)
+                utils.delay(primitive_update_transform, object)
+
+    def exit_object_mode(new_mode):
+        active_object = bpy.context.active_object
+        for object in bpy.context.selected_objects:
+            if object.is_primitive:
+                bpy.context.view_layer.objects.active = object
+                bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.context.view_layer.objects.active = active_object
 
     def post_registration_loaded():
         for resource_path in utils.get_resources_path(package).glob("*.blend"):
@@ -68,12 +112,13 @@ def register(utils, package):
                 object = next(iter(resources["objects"].values()))
                 primitive_mesh.from_mesh(object.data)
             PRIMITIVE_TYPES[primitive_name]["bmesh"] = primitive_mesh
+
     return {
         "classes": (VIEW3D_OT_insert_primitive,),
         "listeners": (
-            # utils.listen_mode(("VERTEX_PAINT", "SCULPT"), enter=enter_vertex_paint, exit=exit_vertex_paint), 
+            utils.listen_mode(("OBJECT",), exit=exit_object_mode, priority=0),
             utils.listen_depsgraph_update(primitive_part_updated),
         ),
         "draw": draw,
-        "post_registration_loaded": post_registration_loaded,
+        "post_registration_loaded": post_registration_loaded
     }

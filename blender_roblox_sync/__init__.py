@@ -11,7 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import bpy, queue, importlib, pathlib, inspect, uuid, sys, math, re
+import bpy, importlib, pathlib, inspect, uuid, sys, math, re
 from contextlib import contextmanager
 
 property_type = type(bpy.props.IntProperty())
@@ -120,7 +120,9 @@ class Utils:
 
     def listen_mode(self, modes, **kwargs):
         key = uuid.uuid4()
-        self.__listen_modes[key] = {"modes": modes, **kwargs}
+        listener = {"modes": modes, **kwargs}
+        listener["priority"] = listener["priority"] if "priority" in listener else math.inf
+        self.__listen_modes[key] = listener
         return key
 
     def listen_depsgraph_update(self, callback):
@@ -224,6 +226,14 @@ class Utils:
         })
         self.__addon_panels.append(panelClass)
 
+    def delay(self, callback, *args):
+        def delayed():
+            callback(*args)
+        bpy.app.timers.register(delayed)
+
+    def get_mode(self):
+        return bpy.context.active_object.mode if bpy.context.active_object else "OBJECT"
+    
     def register(self, recorded_prefs=None):
         self.addon_paths = {}
         self.__loaded_addons = []
@@ -255,19 +265,28 @@ class Utils:
         def deferred_mode_updates():
             nonlocal last_mode
             if self.__depsgraph_paused == 0:
-                new_mode = "OBJECT"
-                if bpy.context.active_object:
-                    new_mode = bpy.context.active_object.mode
-
+                new_mode = self.get_mode()
                 if new_mode != last_mode:
+                    enter_listeners = []
+                    exit_listeners = []
                     for listener in self.__listen_modes.values():
+                        if ("enter" in listener) and listener["enter"]:
+                            enter_listeners.append(listener)
+                        if ("exit" in listener) and listener["exit"]:
+                            exit_listeners.append(listener)
+
+                    enter_listeners.sort(key = lambda listener: listener["priority"])
+                    exit_listeners.sort(key = lambda listener: listener["priority"])
+                    for listener in exit_listeners:
+                        modes = listener["modes"]
+                        if not (new_mode in modes) and (last_mode in modes):
+                            listener["exit"](new_mode)
+                            new_mode = self.get_mode()
+                    for listener in enter_listeners:
                         modes = listener["modes"]
                         if (new_mode in modes) and not (last_mode in modes):
-                            if ("enter" in listener) and listener["enter"]:
-                                listener["enter"](last_mode)
-                        elif not (new_mode in modes) and (last_mode in modes):
-                            if ("exit" in listener) and listener["exit"]:
-                                listener["exit"](new_mode)
+                            listener["enter"](last_mode)
+                            new_mode = self.get_mode()
                     last_mode = new_mode
             return 0.001
         
