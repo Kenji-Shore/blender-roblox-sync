@@ -1,4 +1,4 @@
-import bpy, bmesh, bl_ui
+import bpy, bmesh, bl_ui, mathutils
 
 def register(utils, package):
     
@@ -10,6 +10,7 @@ def register(utils, package):
     def enter_vertex_paint(last_mode):
         nonlocal sculpt_object_name
         nonlocal active_object_name
+        
         with utils.pause_updates():
             editable_objects = bpy.context.selected_editable_objects
             if len(editable_objects) > 1:
@@ -19,17 +20,18 @@ def register(utils, package):
                 selected_objects = []
                 for object in bpy.context.selected_objects:
                     selected_objects.append(object)
-
                     bpy.context.view_layer.objects.active = object
                     bpy.ops.object.mode_set(mode="OBJECT")
+                    object.hide_viewport = True
                     object.select_set(False)
 
-                sculpt_mesh = bpy.data.meshes.new("temp_sculpt_mesh")
-                sculpt_object = bpy.data.objects.new("temp_sculpt_object", sculpt_mesh)
+                bpy.ops.object.add(type="MESH")
+                sculpt_object = bpy.context.active_object
+                sculpt_object.matrix_world = mathutils.Matrix()
+                sculpt_mesh = sculpt_object.data
+                sculpt_object.name = "temp_sculpt_object"
                 sculpt_object_name = sculpt_object.name
-                bpy.context.collection.objects.link(sculpt_object)
-                sculpt_object.select_set(True)
-                bpy.context.view_layer.objects.active = sculpt_object
+                bpy.ops.object.mode_set(mode=object_mode)
 
                 sculpt_bmesh = bmesh.new()
                 sculpt_uv_layer = sculpt_bmesh.loops.layers.uv.new()
@@ -101,11 +103,7 @@ def register(utils, package):
 
                 sculpt_bmesh.to_mesh(sculpt_mesh)
                 sculpt_mesh.color_attributes.active_color = sculpt_mesh.color_attributes.get(VERTEX_COLOR_NAME)
-                bpy.ops.object.shade_smooth()
-
-                for object in selected_objects:
-                    object.hide_viewport = True
-                bpy.ops.object.mode_set(mode=object_mode)
+                # bpy.ops.object.shade_smooth()
                 bpy.ops.ed.undo_push()
             
     def exit_vertex_paint(new_mode, override_mode=None):
@@ -162,7 +160,7 @@ def register(utils, package):
 
                         read_bmesh.to_mesh(read_mesh)
                         bpy.context.view_layer.objects.active = sculpt_object
-                        bpy.ops.object.shade_smooth()
+                        # bpy.ops.object.shade_smooth()
                 
                     sculpt_object.select_set(True)
                     bpy.ops.object.mode_set(mode="OBJECT")
@@ -181,12 +179,13 @@ def register(utils, package):
         if not mesh.color_attributes.get(VERTEX_COLOR_NAME):
             mesh.attributes.new(VERTEX_COLOR_NAME, "BYTE_COLOR", "CORNER")
     def load_post(file):
+        exit_vertex_paint(None, "OBJECT")
         for mesh in bpy.data.meshes:
             add_vertex_color(mesh)
     def save_pre(file):
         if sculpt_object_name and bpy.data.objects.get(sculpt_object_name):
             exit_vertex_paint(None, "OBJECT")
-    def add_vertex_colors():
+    def add_vertex_colors(depsgraph):
         for object in bpy.context.selected_editable_objects:
             if object.type == "MESH":
                 add_vertex_color(object.data)
@@ -199,8 +198,7 @@ def register(utils, package):
         @classmethod
         def poll(cls, context):
             return super().poll(context) and (sculpt_object_name and not bpy.data.objects.get(sculpt_object_name))
-        
-
+    
     def unregister():
         exit_vertex_paint(None, "OBJECT")
     return {

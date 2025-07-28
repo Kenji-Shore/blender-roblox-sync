@@ -169,26 +169,27 @@ def register(utils, package):
             return node.parent == frame
 
     def disable_custom_material(mat):
-        nodes = mat.node_tree.nodes
-        frame = get_custom_material_frame(nodes)
-        if frame:
-            frame.label = get_custom_material_label(mat)
+        if mat.node_tree:
+            nodes = mat.node_tree.nodes
+            frame = get_custom_material_frame(nodes)
+            if frame:
+                frame.label = get_custom_material_label(mat)
+                for node in nodes:
+                    if node.parent == frame and node.bl_idname == "ShaderNodeOutputMaterial":
+                        nodes.remove(node)
+            
+            output_node_exists = False
             for node in nodes:
-                if node.parent == frame and node.bl_idname == "ShaderNodeOutputMaterial":
-                    nodes.remove(node)
-        
-        output_node_exists = False
-        for node in nodes:
-            if node.bl_idname == "ShaderNodeOutputMaterial":
-                output_node_exists = True
-                break
-        if not output_node_exists:
-            node = nodes.new(type="ShaderNodeOutputMaterial")
-            node.location = mathutils.Vector((200, 160))
+                if node.bl_idname == "ShaderNodeOutputMaterial":
+                    output_node_exists = True
+                    break
+            if not output_node_exists:
+                node = nodes.new(type="ShaderNodeOutputMaterial")
+                node.location = mathutils.Vector((200, 160))
 
     def init_custom_material(mat):
-        node_properties, node_links = get_node_setup(mat)
         if mat.node_tree:
+            node_properties, node_links = get_node_setup(mat)
             nodes = mat.node_tree.nodes
             frame = get_custom_material_frame(nodes)
             is_new = False
@@ -306,7 +307,7 @@ def register(utils, package):
             init_custom_material(self)
         else:
             disable_custom_material(self)
-    bpy.types.Material.use_custom_material = bpy.props.BoolProperty(default=True, update=update_use_custom_material)
+    bpy.types.Material.use_custom_material = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
     bpy.types.Material.use_image_transparency = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
     bpy.types.Material.use_scroll_texture = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
     bpy.types.Material.scroll_speed = bpy.props.FloatProperty(default=1, min=-10, max=10, update=update_use_custom_material)

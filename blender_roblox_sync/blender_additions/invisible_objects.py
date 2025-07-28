@@ -26,8 +26,6 @@ def register(utils, package):
         pass
     for property_name, default_setting in VISIBLE_SETTINGS.items():
         VisibleSettings.__annotations__[property_name] = bpy.props.BoolProperty(default=default_setting)
-    bpy.utils.register_class(VisibleSettings)
-    bpy.types.Object.visible_settings = bpy.props.PointerProperty(type=VisibleSettings)
 
     def update_is_invisible(self, context):
         if self.is_invisible:
@@ -100,21 +98,24 @@ def register(utils, package):
             if active_object.is_invisible:
                 row = box.row()
                 row.prop(active_object, "invisible_color", text="Color")
-    def depsgraph_update_post(scene, depsgraph):
+    def invalidate_batches(depsgraph):
         for depsgraph_update in depsgraph.updates:
             id = depsgraph_update.id
             if (id.original in object_batches) and (depsgraph_update.is_updated_transform or depsgraph_update.is_updated_geometry):
                 object_batches.pop(id.original)
+    def post_registration():
+        bpy.types.Object.visible_settings = bpy.props.PointerProperty(type=VisibleSettings)
     def unregister():
         nonlocal outline_handle_3d
         if outline_handle_3d:
             bpy.types.SpaceView3D.draw_handler_remove(outline_handle_3d, "WINDOW")
             outline_handle_3d = None
-        bpy.utils.unregister_class(VisibleSettings)
     return {
+        "classes": (VisibleSettings,),
         "listeners": (
-            utils.listen_handler("depsgraph_update_post", depsgraph_update_post),
+            utils.listen_depsgraph_update(invalidate_batches),
         ),
         "draw": draw,
+        "post_registration": post_registration,
         "unregister": unregister
     }

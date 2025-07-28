@@ -170,52 +170,36 @@ class Utils:
     
     @contextmanager
     def load_resources(self, file_path, *args):
+        file_path_str = str(file_path)
         id_names_dict = {}
-        with bpy.data.libraries.load(file_path) as (data_from, data_to):
+        with bpy.data.libraries.load(file_path_str) as (data_from, data_to):
             for attr in args:
                 id_names_dict[attr] = getattr(data_from, attr).copy()
                 setattr(data_to, attr, getattr(data_from, attr))
 
         resources = {}
-        temp_dict = {}
-        def add_resources(attr):
-            if len(temp_dict) > 0:
-                if not attr in resources:
-                    resources[attr] = {}
-                resources[attr].update(temp_dict)
-                temp_dict.clear()
+        def add_resource(attr, id_name, id):
+            resources[attr] = {} if not attr in resources else resources[attr]
+            resources[attr][id_name] = id
 
-        for attr in dir(bpy.data):
-            prop_collection = getattr(bpy.data, attr, None)
-            if isinstance(prop_collection, bpy.types.bpy_prop_collection):
-                for id in prop_collection:
-                    library_weak_reference = id.library_weak_reference
-                    if library_weak_reference and (library_weak_reference.filepath == file_path):
-                        id_name = library_weak_reference.id_name[2:]
-                        id.is_runtime_data = True
-                        temp_dict[id_name] = id
-                add_resources(attr)
-        for attr in args:
-            loaded_ids = getattr(data_to, attr)
-            id_names = id_names_dict[attr]
-            for i in range(len(loaded_ids)):
-                id = loaded_ids[i]
-                id_name = id_names[i]
-                id.is_runtime_data = True
-                temp_dict[id_name] = id
-            add_resources(attr)
-            
-        try:
-            yield resources
-        finally:
+        def iterate_ids(func):
             for attr in dir(bpy.data):
                 prop_collection = getattr(bpy.data, attr, None)
                 if isinstance(prop_collection, bpy.types.bpy_prop_collection):
                     for id in prop_collection:
-                        library_weak_reference = id.library_weak_reference
-                        if library_weak_reference and (library_weak_reference.filepath == file_path):
-                            prop_collection.remove(id)
+                        ref = id.library_weak_reference
+                        if ref and (ref.filepath == file_path_str):
+                            func(attr, id, ref, prop_collection)
 
+        iterate_ids(lambda attr, id, ref, prop_collection: add_resource(attr, ref.id_name[2:], id))
+        for attr, id_names in id_names_dict.items():
+            loaded_ids = getattr(data_to, attr)
+            for i in range(len(loaded_ids)):
+                add_resource(attr, id_names[i], loaded_ids[i])
+        try:
+            yield resources
+        finally:
+            iterate_ids(lambda attr, id, ref, prop_collection: prop_collection.remove(id))
     
     @contextmanager
     def pause_updates(self):
@@ -256,44 +240,45 @@ class Utils:
         self.__listen_timers = {}
         self.__depsgraph_paused = 0
 
-        mode_updates = queue.Queue()
         def depsgraph_update_post(scene, depsgraph):
+            active_operator = bpy.context.active_operator
+            if active_operator:
+                operator_name = active_operator.bl_idname
+                for listener in self.__listen_operators.values():
+                    if listener["operator"] == operator_name:
+                        listener["callback"]()
             if self.__depsgraph_paused == 0:
                 for callback in self.__listen_depsgraph_updates.values():
-                    callback()
-                active_operator = bpy.context.active_operator
-                if active_operator:
-                    operator_name = active_operator.bl_idname
-                    for listener in self.__listen_operators.values():
-                        if listener["operator"] == operator_name:
-                            listener["callback"]()
-                if bpy.context.active_object:
-                    mode_updates.put(bpy.context.active_object.mode)
+                    callback(depsgraph)
 
-        last_mode = None
+        last_mode = "OBJECT"
         def deferred_mode_updates():
             nonlocal last_mode
-            new_mode = None
-            while not mode_updates.empty():
-                new_mode = mode_updates.get()
+            if self.__depsgraph_paused == 0:
+                new_mode = "OBJECT"
+                if bpy.context.active_object:
+                    new_mode = bpy.context.active_object.mode
 
-            if new_mode and (new_mode != last_mode):
-                store_last_mode = last_mode
-                last_mode = new_mode
-                
-                for listener in self.__listen_modes.values():
-                    modes = listener["modes"]
-                    if (new_mode in modes) and not (store_last_mode in modes):
-                        if ("enter" in listener) and listener["enter"]:
-                            listener["enter"](store_last_mode)
-                    elif not (new_mode in modes) and (store_last_mode in modes):
-                        if ("exit" in listener) and listener["exit"]:
-                            listener["exit"](new_mode)
+                if new_mode != last_mode:
+                    for listener in self.__listen_modes.values():
+                        modes = listener["modes"]
+                        if (new_mode in modes) and not (last_mode in modes):
+                            if ("enter" in listener) and listener["enter"]:
+                                listener["enter"](last_mode)
+                        elif not (new_mode in modes) and (last_mode in modes):
+                            if ("exit" in listener) and listener["exit"]:
+                                listener["exit"](new_mode)
+                    last_mode = new_mode
             return 0.001
+        
+        def load_post(file):
+            nonlocal last_mode
+            last_mode = "OBJECT"
 
         self.__listeners = (
             self.listen_handler("depsgraph_update_post", depsgraph_update_post),
-            self.listen_timer(deferred_mode_updates, persistent=True)
+            self.listen_timer(deferred_mode_updates, persistent=True),
+            self.listen_handler("load_post", load_post),
         )
 
         self.__prefs_props = {}
