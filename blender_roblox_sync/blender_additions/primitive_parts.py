@@ -23,8 +23,13 @@ def register(utils, package):
             "lock_scales": (0, 1, 2)
         }
     }
+
+    def update_primitive_type(object, context):
+        if object.is_primitive and object.mode == "OBJECT":
+            PRIMITIVE_TYPES[object.primitive_type]["bmesh"].to_mesh(object.data)
+
     bpy.types.Object.is_primitive = bpy.props.BoolProperty(default=False)
-    bpy.types.Object.primitive_type = bpy.props.EnumProperty(items=[(key, key, "") for key in PRIMITIVE_TYPES.keys()], default="Block")
+    bpy.types.Object.primitive_type = bpy.props.EnumProperty(items=[(key, key, "") for key in PRIMITIVE_TYPES.keys()], default="Block", update=update_primitive_type)
     bpy.types.Object.primitive_lock_scale = bpy.props.FloatProperty()
     bpy.types.Scene.insert_primitive_type = bpy.props.EnumProperty(items=[(key, key, "", PRIMITIVE_TYPES[key]["icon"], PRIMITIVE_TYPES[key]["id"]) for key in PRIMITIVE_TYPES.keys()], default="Block")
 
@@ -69,7 +74,6 @@ def register(utils, package):
             object.is_primitive = True
             object.primitive_type = primitive_type
             object.name = primitive_type
-            primitive_info["bmesh"].to_mesh(object.data)
 
             scale = object.scale
             lock_scale = 0
@@ -107,11 +111,12 @@ def register(utils, package):
     def post_registration_loaded():
         for resource_path in utils.get_resources_path(package).glob("*.blend"):
             primitive_name = resource_path.stem
-            primitive_mesh = bmesh.new()
-            with utils.load_resources(resource_path, "objects") as resources:
-                object = next(iter(resources["objects"].values()))
-                primitive_mesh.from_mesh(object.data)
-            PRIMITIVE_TYPES[primitive_name]["bmesh"] = primitive_mesh
+            if primitive_name in PRIMITIVE_TYPES:
+                primitive_mesh = bmesh.new()
+                with utils.load_resources(resource_path, "objects") as resources:
+                    object = next(iter(resources["objects"].values()))
+                    primitive_mesh.from_mesh(object.data)
+                PRIMITIVE_TYPES[primitive_name]["bmesh"] = primitive_mesh
 
     return {
         "classes": (VIEW3D_OT_insert_primitive,),
