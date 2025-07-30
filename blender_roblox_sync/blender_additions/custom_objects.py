@@ -86,7 +86,6 @@ def register(utils, package):
             self.__custom_object = custom_object
             self.transform = transform
         def destroy(self):
-            print("deletoes")
             self.__custom_object.instances.remove(self)
     global CustomObject
     class CustomObject:
@@ -142,7 +141,7 @@ def register(utils, package):
             self.__shader.uniform_block("my_struct", buf)
             if self.__texture:
                 self.__shader.uniform_sampler("image", self.__texture)
-            self.__batch.draw_instanced(self.__shader, instance_start=0, instance_count=2)
+            self.__batch.draw_instanced(self.__shader, instance_start=0, instance_count=len(self.instances))
             
             gpu.state.depth_test_set("NONE")
             gpu.state.face_culling_set("NONE")
