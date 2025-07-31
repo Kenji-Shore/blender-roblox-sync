@@ -109,7 +109,7 @@ def register(utils, package):
         bpy.context.view_layer.objects.active = active_object
 
     def post_registration_loaded():
-        for resource_path in utils.get_resources_path(package).glob("*.blend"):
+        for resource_path in utils.get_path(package, "resources").glob("*.blend"):
             primitive_name = resource_path.stem
             if primitive_name in PRIMITIVE_TYPES:
                 primitive_mesh = bmesh.new()

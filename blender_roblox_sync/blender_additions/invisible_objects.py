@@ -27,6 +27,7 @@ def register(utils, package):
     for property_name, default_setting in VISIBLE_SETTINGS.items():
         VisibleSettings.__annotations__[property_name] = bpy.props.BoolProperty(default=default_setting)
 
+    global update_is_invisible
     def update_is_invisible(self, context):
         if self.is_invisible:
             for property_name, default_setting in VISIBLE_SETTINGS.items():
@@ -60,7 +61,7 @@ def register(utils, package):
         return (triangles_shader, triangles_batch, edges_shader, edges_batch,)
 
     object_batches = {}
-    def draw_callback_3d():
+    def draw_callback_3d(delta_time):
         nonlocal object_batches
         depsgraph = bpy.context.evaluated_depsgraph_get()
 
@@ -71,23 +72,22 @@ def register(utils, package):
                 new_object_batches[object] = object_batches[object] if object in object_batches else build_batch(object.evaluated_get(depsgraph))
         
         object_batches = new_object_batches
+        with utils.gpu_state({
+            "blend_set": "ALPHA",
+            "depth_test_set": "LESS_EQUAL"
+        }):
+            for object, batches in object_batches.items():
+                face_color = COLORS[object.invisible_color].copy()
+                face_color.s *= 0.5
+                triangles_shader, triangles_batch, edges_shader, edges_batch = batches
+                triangles_shader.uniform_float("color", (face_color.r, face_color.g, face_color.b, 0.2,)) 
+                triangles_batch.draw(triangles_shader)
+
         for object, batches in object_batches.items():
             edge_color = COLORS[object.invisible_color]
-            face_color = edge_color.copy()
-            face_color.s *= 0.5
-
             triangles_shader, triangles_batch, edges_shader, edges_batch = batches
-
-            gpu.state.depth_test_set("LESS_EQUAL")
-            gpu.state.blend_set("ALPHA")
-            triangles_shader.uniform_float("color", (face_color.r, face_color.g, face_color.b, 0.2,)) 
-            triangles_batch.draw(triangles_shader)
-            gpu.state.blend_set("NONE")
-            gpu.state.depth_test_set("NONE")
-            
             edges_shader.uniform_float("color", (edge_color.r, edge_color.g, edge_color.b, 1,)) 
             edges_batch.draw(edges_shader)
-    outline_handle_3d = bpy.types.SpaceView3D.draw_handler_add(draw_callback_3d, (), "WINDOW", "POST_VIEW")
 
     def draw(layout, context):
         box = layout.box()
@@ -102,20 +102,16 @@ def register(utils, package):
         for depsgraph_update in depsgraph.updates:
             id = depsgraph_update.id
             if (id.original in object_batches) and (depsgraph_update.is_updated_transform or depsgraph_update.is_updated_geometry):
+                utils.trigger_redraw()
                 object_batches.pop(id.original)
     def post_registration():
         bpy.types.Object.visible_settings = bpy.props.PointerProperty(type=VisibleSettings)
-    def unregister():
-        nonlocal outline_handle_3d
-        if outline_handle_3d:
-            bpy.types.SpaceView3D.draw_handler_remove(outline_handle_3d, "WINDOW")
-            outline_handle_3d = None
     return {
         "classes": (VisibleSettings,),
         "listeners": (
             utils.listen_depsgraph_update(invalidate_batches),
+            utils.listen_draw(draw_callback_3d, priority=0),
         ),
         "draw": draw,
         "post_registration": post_registration,
-        "unregister": unregister
     }

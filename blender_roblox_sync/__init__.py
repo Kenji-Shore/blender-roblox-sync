@@ -11,8 +11,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import bpy, importlib, pathlib, inspect, uuid, sys, math, re
+import bpy, importlib, pathlib, inspect, uuid, sys, math, re, gpu, time
 from contextlib import contextmanager
+
+LARGE_INT = sys.maxsize
 
 property_type = type(bpy.props.IntProperty())
 def record_prefs(prefs):
@@ -148,6 +150,11 @@ class Utils:
         self.__listen_timers[key] = callback
         return key
 
+    def listen_draw(self, callback, *, is_pre_view=False, priority=100):
+        key = uuid.uuid4()
+        self.__listen_draws[key] = (callback, is_pre_view, priority if priority > 0 else LARGE_INT + priority)
+        return key
+
     def unlisten(self, key):
         if key in self.__listen_operators:
             self.__listen_operators.pop(key)
@@ -163,10 +170,12 @@ class Utils:
             callback = self.__listen_timers.pop(key)
             if bpy.app.timers.is_registered(callback):
                 bpy.app.timers.unregister(callback)
+        elif key in self.__listen_draws:
+            self.__listen_draws.pop(key)
 
-    def get_resources_path(self, package):
+    def get_path(self, package, folder):
         addon_path = self.addon_paths[package]
-        resources_path = addon_path.joinpath("resources")
+        resources_path = addon_path.joinpath(folder)
         if resources_path.is_dir():
             return resources_path
     
@@ -211,6 +220,30 @@ class Utils:
         finally:
             self.__depsgraph_paused -= 1
     
+    @contextmanager
+    def gpu_state(self, states=None):
+        if states:
+            existing_states = self.__gpu_states
+            states.update(existing_states)
+            try:
+                self.__gpu_states = states
+                for key, value in states.items():
+                    getattr(gpu.state, key)(value)
+                yield True
+            finally:
+                self.__gpu_states = existing_states
+                for key in states.keys():
+                    value = existing_states[key] if key in existing_states else "NONE"
+                    getattr(gpu.state, key)(value)
+        else:
+            try:
+                yield True
+            finally:
+                pass
+
+    def trigger_redraw(self):
+        self.__trigger_redraws += 1
+    
     def __create_panel(self, root_package_name, addon_draws):
         store_addon_draws = addon_draws.copy()
         def panelDraw(self, context):
@@ -242,13 +275,16 @@ class Utils:
         self.__registered_modules = []
         self.__registered_modules_returns = []
         self.__dependency_stack = []
+        self.__gpu_states = {}
 
         self.__listen_operators = {}
         self.__listen_modes = {}
         self.__listen_depsgraph_updates = {}
         self.__listen_handlers = {}
         self.__listen_timers = {}
+        self.__listen_draws = {}
         self.__depsgraph_paused = 0
+        self.__trigger_redraws = 0
 
         def depsgraph_update_post(scene, depsgraph):
             active_operator = bpy.context.active_operator
@@ -264,6 +300,12 @@ class Utils:
         last_mode = "OBJECT"
         def deferred_mode_updates():
             nonlocal last_mode
+            if self.__trigger_redraws > 0:
+                self.__trigger_redraws = 0
+                for area in bpy.context.window.screen.areas:
+                    if area.type == "VIEW_3D":
+                        area.tag_redraw()
+            
             if self.__depsgraph_paused == 0:
                 new_mode = self.get_mode()
                 if new_mode != last_mode:
@@ -337,6 +379,35 @@ class Utils:
             bpy.utils.register_class(addon_panel)
         self.prefs = bpy.context.preferences.addons[__package__].preferences
 
+        last_time = time.process_time()
+        delta_time = 0
+        def draw_pre_view():
+            nonlocal last_time
+            nonlocal delta_time
+            new_time = time.process_time()
+            delta_time = new_time - last_time
+            last_time = new_time
+
+            draws = []
+            for callback, is_pre_view, priority in self.__listen_draws.values():
+                if is_pre_view:
+                    draws.append((callback, priority))
+            draws.sort(key = lambda draw: draw[1])
+            for callback, _ in draws:
+                callback(delta_time)
+        def draw_post_view():
+            draws = []
+            for callback, is_pre_view, priority in self.__listen_draws.values():
+                if not is_pre_view:
+                    draws.append((callback, priority))
+            draws.sort(key = lambda draw: draw[1])
+            for callback, _ in draws:
+                callback(delta_time)
+        self.__draw_handlers = (
+            bpy.types.SpaceView3D.draw_handler_add(draw_pre_view, (), "WINDOW", "PRE_VIEW"),
+            bpy.types.SpaceView3D.draw_handler_add(draw_post_view, (), "WINDOW", "POST_VIEW")
+        )
+
         for returns in self.__registered_modules_returns:
             if "post_registration" in returns:
                 returns["post_registration"]()
@@ -354,6 +425,11 @@ class Utils:
         self.__post_registration_load_flag = None
         self.__reload_flag = None
         recorded_prefs = record_prefs(self.prefs) if self.prefs else None
+
+        if self.__draw_handlers:
+            bpy.types.SpaceView3D.draw_handler_remove(self.__draw_handlers[0], "WINDOW")
+            bpy.types.SpaceView3D.draw_handler_remove(self.__draw_handlers[1], "WINDOW")
+            self.__draw_handlers = None
 
         for listener in self.__listeners:
             self.unlisten(listener)
