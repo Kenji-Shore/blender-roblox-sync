@@ -80,6 +80,6 @@ def register(utils, package):
     def draw(layout, context):
         layout.label(text="Currently Syncing:")
     return {
-        "classes": (WidgetGroup, WidgetGroup2,),
+        # "classes": (WidgetGroup, WidgetGroup2,),
         "draw": draw
     }

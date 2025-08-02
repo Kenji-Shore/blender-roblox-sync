@@ -54,13 +54,13 @@ def register(utils, package):
         refresh_token = get_refresh_token(scopes_set)
         if refresh_token in lookup_tokens:
             access_token, grant_time, expires_in = lookup_tokens[refresh_token]
-            if (time.process_time() - grant_time) < (expires_in - 10):
+            if (time.time() - grant_time) < (expires_in - 10):
                 callback(access_token)
                 return
 
         if refresh_token:
             delete_refresh_token(refresh_token)
-            request_time = time.process_time()
+            request_time = time.time()
             response = requests.post(
                 "https://apis.roblox.com/oauth/v1/token", 
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -89,7 +89,7 @@ def register(utils, package):
         def request_callback(queries=None):
             del outgoing_requests[state]
             if queries:
-                request_time = time.process_time()
+                request_time = time.time()
                 response = requests.post(
                     "https://apis.roblox.com/oauth/v1/token", 
                     headers={"Content-Type": "application/x-www-form-urlencoded"},

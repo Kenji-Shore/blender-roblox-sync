@@ -132,6 +132,11 @@ class Utils:
         self.__listen_depsgraph_updates[key] = callback
         return key
 
+    def listen_object_visibility_change(self, callback):
+        key = uuid.uuid4()
+        self.__listen_object_visibility_changes[key] = callback
+        return key
+    
     def listen_handler(self, handler_name, callback):
         args_count = len(inspect.signature(callback).parameters)
         @bpy.app.handlers.persistent
@@ -142,7 +147,7 @@ class Utils:
         self.__listen_handlers[key] = (handler_name, wrapped_callback)
         getattr(bpy.app.handlers, handler_name).append(wrapped_callback)
         return key
-
+    
     def listen_timer(self, callback, **kwargs): #only use for repeating timers, not one-time timers
         bpy.app.timers.register(callback, **kwargs)
 
@@ -172,6 +177,8 @@ class Utils:
                 bpy.app.timers.unregister(callback)
         elif key in self.__listen_draws:
             self.__listen_draws.pop(key)
+        elif key in self.__listen_object_visibility_changes:
+            self.__listen_object_visibility_changes.pop(key)
 
     def get_path(self, package, folder):
         addon_path = self.addon_paths[package]
@@ -224,15 +231,16 @@ class Utils:
     def gpu_state(self, states=None):
         if states:
             existing_states = self.__gpu_states
-            states.update(existing_states)
+            new_states = existing_states.copy()
+            new_states.update(states)
             try:
-                self.__gpu_states = states
-                for key, value in states.items():
+                self.__gpu_states = new_states
+                for key, value in new_states.items():
                     getattr(gpu.state, key)(value)
                 yield True
             finally:
                 self.__gpu_states = existing_states
-                for key in states.keys():
+                for key in new_states.keys():
                     value = existing_states[key] if key in existing_states else "NONE"
                     getattr(gpu.state, key)(value)
         else:
@@ -244,6 +252,13 @@ class Utils:
     def trigger_redraw(self):
         self.__trigger_redraws += 1
     
+    def object_exists(self, object):
+        try:
+            object.matrix_world
+            return True
+        except:
+            return False
+        
     def __create_panel(self, root_package_name, addon_draws):
         store_addon_draws = addon_draws.copy()
         def panelDraw(self, context):
@@ -280,6 +295,7 @@ class Utils:
         self.__listen_operators = {}
         self.__listen_modes = {}
         self.__listen_depsgraph_updates = {}
+        self.__listen_object_visibility_changes = {}
         self.__listen_handlers = {}
         self.__listen_timers = {}
         self.__listen_draws = {}
@@ -297,9 +313,22 @@ class Utils:
                 for callback in self.__listen_depsgraph_updates.values():
                     callback(depsgraph)
 
+        existing_objects = set()
         last_mode = "OBJECT"
         def deferred_mode_updates():
+            nonlocal existing_objects
             nonlocal last_mode
+            
+            new_objects = set(bpy.context.visible_objects)
+            changed_objects = new_objects ^ (existing_objects & set(bpy.data.objects.values()))
+            existing_objects = new_objects
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            for object in changed_objects:
+                is_visible = object in new_objects
+                object = object.evaluated_get(depsgraph)
+                for callback in self.__listen_object_visibility_changes.values():
+                    callback(object, is_visible)
+
             if self.__trigger_redraws > 0:
                 self.__trigger_redraws = 0
                 for area in bpy.context.window.screen.areas:
@@ -379,12 +408,12 @@ class Utils:
             bpy.utils.register_class(addon_panel)
         self.prefs = bpy.context.preferences.addons[__package__].preferences
 
-        last_time = time.process_time()
+        last_time = time.time()
         delta_time = 0
         def draw_pre_view():
             nonlocal last_time
             nonlocal delta_time
-            new_time = time.process_time()
+            new_time = time.time()
             delta_time = new_time - last_time
             last_time = new_time
 

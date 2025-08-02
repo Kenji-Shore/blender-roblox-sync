@@ -1,7 +1,11 @@
-import bpy, gpu, mathutils
-from gpu_extras.batch import batch_for_shader
+import bpy, mathutils
 
 def register(utils, package):
+    custom_objects = utils.import_module("custom_objects")
+    
+    shaders_path = utils.get_path(package, "shaders")
+    INVISIBLE_VERT = shaders_path.joinpath("uniform_color_vert.glsl").read_text()
+    INVISIBLE_FRAG = shaders_path.joinpath("uniform_color_frag.glsl").read_text()
 
     COLORS = {
         "Red": mathutils.Color((1, 0, 0)),
@@ -12,83 +16,61 @@ def register(utils, package):
         "Brown": mathutils.Color((0.5, 0.25, 0)),
         "White": mathutils.Color((1, 1, 1)),
     }
+    def get_color(custom_object):
+        color = COLORS[custom_object.tied_object.invisible_color].copy()
+        if not custom_object.draw_edges:
+            color.s *= 0.5
+        return (color.r, color.g, color.b) + ((1 if custom_object.draw_edges else 0.2),)
+    
+    INVISIBLE_OBJECT = custom_objects.create_shader(
+        vertex=INVISIBLE_VERT,
+        fragment=INVISIBLE_FRAG,
+        uniforms=(("color", {
+            "type": "VEC4",
+            "set": "uniform_float",
+            "get_value": get_color,
+        }),)
+    )
 
-    VISIBLE_SETTINGS = {
-        "show_in_front": False,
-        "visible_shadow": True,
-        "visible_volume_scatter": True,
-        "visible_transmission": True,
-        "visible_glossy": True,
-        "visible_diffuse": True,
-        "visible_camera": True
-    }
-    class VisibleSettings(bpy.types.PropertyGroup):
-        pass
-    for property_name, default_setting in VISIBLE_SETTINGS.items():
-        VisibleSettings.__annotations__[property_name] = bpy.props.BoolProperty(default=default_setting)
-
-    global update_is_invisible
-    def update_is_invisible(self, context):
-        if self.is_invisible:
-            for property_name, default_setting in VISIBLE_SETTINGS.items():
-                setattr(self.visible_settings, property_name, getattr(self, property_name))
-                setattr(self, property_name, not default_setting)
-        else:
-            for property_name, default_setting in VISIBLE_SETTINGS.items():
-                setattr(self, property_name, getattr(self.visible_settings, property_name))
+    invisible_objects = {}
+    def destroy_invisible_object(object):
+        if object.original in invisible_objects:
+            invisible_faces, invisible_edges = invisible_objects[object.original]
+            invisible_faces.destroy()
+            invisible_edges.destroy()
+            del invisible_objects[object.original]
+    def update_is_invisible(object, context):
+        destroy_invisible_object(object)
+        if object.is_invisible:
+            invisible_faces = custom_objects.CustomObject(
+                object=object, 
+                shader=INVISIBLE_OBJECT, 
+                gpu_states={
+                    "blend_set": "ALPHA",
+                    "face_culling_set": "NONE",
+                },
+                draw_order=-10,
+                tied_to_object=True,
+            )
+            invisible_edges = custom_objects.CustomObject(
+                object=object, 
+                shader=INVISIBLE_OBJECT, 
+                gpu_states={
+                    "depth_test_set": "NONE",
+                },
+                draw_order=-9,
+                draw_edges=True,
+                tied_to_object=True,
+            )
+            invisible_objects[object.original] = (invisible_faces, invisible_edges)
     bpy.types.Object.is_invisible = bpy.props.BoolProperty(default=False, update=update_is_invisible)
     bpy.types.Object.invisible_color = bpy.props.EnumProperty(items=[(key, key, "") for key in COLORS.keys()], default="Red")
 
-    def build_batch(object):
-        transform = object.matrix_world
-        mesh = object.data
-        pos_attributes = [transform @ v.co for v in mesh.vertices]
-
-        triangles_indices = []
-        edges_indices = []
-        for loop_triangle in mesh.loop_triangles:
-            triangles_indices.append(tuple(loop_triangle.vertices))
-        for edge in mesh.edges:
-            edges_indices.append(tuple(edge.vertices))
-        
-        triangles_shader = gpu.shader.from_builtin("UNIFORM_COLOR")
-        triangles_shader.bind()
-        triangles_batch = batch_for_shader(triangles_shader, "TRIS", {"pos": pos_attributes}, indices=triangles_indices)
-
-        edges_shader = gpu.shader.from_builtin("UNIFORM_COLOR")
-        edges_shader.bind()
-        edges_batch = batch_for_shader(edges_shader, "LINES", {"pos": pos_attributes}, indices=edges_indices)
-        return (triangles_shader, triangles_batch, edges_shader, edges_batch,)
-
-    object_batches = {}
-    def draw_callback_3d(delta_time):
-        nonlocal object_batches
-        depsgraph = bpy.context.evaluated_depsgraph_get()
-
-        new_object_batches = {}
-        object = bpy.context.object
-        for object in bpy.context.visible_objects:
-            if object.is_invisible:
-                new_object_batches[object] = object_batches[object] if object in object_batches else build_batch(object.evaluated_get(depsgraph))
-        
-        object_batches = new_object_batches
-        with utils.gpu_state({
-            "blend_set": "ALPHA",
-            "depth_test_set": "LESS_EQUAL"
-        }):
-            for object, batches in object_batches.items():
-                face_color = COLORS[object.invisible_color].copy()
-                face_color.s *= 0.5
-                triangles_shader, triangles_batch, edges_shader, edges_batch = batches
-                triangles_shader.uniform_float("color", (face_color.r, face_color.g, face_color.b, 0.2,)) 
-                triangles_batch.draw(triangles_shader)
-
-        for object, batches in object_batches.items():
-            edge_color = COLORS[object.invisible_color]
-            triangles_shader, triangles_batch, edges_shader, edges_batch = batches
-            edges_shader.uniform_float("color", (edge_color.r, edge_color.g, edge_color.b, 1,)) 
-            edges_batch.draw(edges_shader)
-
+    def object_visibility_change(object, is_visible):
+        if is_visible:
+            update_is_invisible(object, bpy.context)
+        else:
+            destroy_invisible_object(object)
     def draw(layout, context):
         box = layout.box()
         active_object = bpy.context.object
@@ -98,20 +80,7 @@ def register(utils, package):
             if active_object.is_invisible:
                 row = box.row()
                 row.prop(active_object, "invisible_color", text="Color")
-    def invalidate_batches(depsgraph):
-        for depsgraph_update in depsgraph.updates:
-            id = depsgraph_update.id
-            if (id.original in object_batches) and (depsgraph_update.is_updated_transform or depsgraph_update.is_updated_geometry):
-                utils.trigger_redraw()
-                object_batches.pop(id.original)
-    def post_registration():
-        bpy.types.Object.visible_settings = bpy.props.PointerProperty(type=VisibleSettings)
     return {
-        "classes": (VisibleSettings,),
-        "listeners": (
-            utils.listen_depsgraph_update(invalidate_batches),
-            utils.listen_draw(draw_callback_3d, priority=0),
-        ),
+        "listeners": (utils.listen_object_visibility_change(object_visibility_change),),
         "draw": draw,
-        "post_registration": post_registration,
     }
