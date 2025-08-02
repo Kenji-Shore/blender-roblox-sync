@@ -314,20 +314,22 @@ class Utils:
                     callback(depsgraph)
 
         existing_objects = set()
+        post_registration_finished = False
         last_mode = "OBJECT"
         def deferred_mode_updates():
             nonlocal existing_objects
             nonlocal last_mode
             
-            new_objects = set(bpy.context.visible_objects)
-            changed_objects = new_objects ^ (existing_objects & set(bpy.data.objects.values()))
-            existing_objects = new_objects
-            depsgraph = bpy.context.evaluated_depsgraph_get()
-            for object in changed_objects:
-                is_visible = object in new_objects
-                object = object.evaluated_get(depsgraph)
-                for callback in self.__listen_object_visibility_changes.values():
-                    callback(object, is_visible)
+            if post_registration_finished:
+                new_objects = set(bpy.context.visible_objects)
+                changed_objects = new_objects ^ (existing_objects & set(bpy.data.objects.values()))
+                existing_objects = new_objects
+                depsgraph = bpy.context.evaluated_depsgraph_get()
+                for object in changed_objects:
+                    is_visible = object in new_objects
+                    object = object.evaluated_get(depsgraph)
+                    for callback in self.__listen_object_visibility_changes.values():
+                        callback(object, is_visible)
 
             if self.__trigger_redraws > 0:
                 self.__trigger_redraws = 0
@@ -444,10 +446,12 @@ class Utils:
         post_registration_load_flag = uuid.uuid4()
         self.__post_registration_load_flag = post_registration_load_flag
         def post_registration_loaded():
+            nonlocal post_registration_finished
             if self.__post_registration_load_flag == post_registration_load_flag:
                 for returns in self.__registered_modules_returns:
                     if "post_registration_loaded" in returns:
                         returns["post_registration_loaded"]()
+            post_registration_finished = True
         bpy.app.timers.register(post_registration_loaded)
 
     def unregister(self):

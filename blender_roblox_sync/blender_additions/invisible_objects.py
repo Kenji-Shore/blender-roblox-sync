@@ -16,11 +16,11 @@ def register(utils, package):
         "Brown": mathutils.Color((0.5, 0.25, 0)),
         "White": mathutils.Color((1, 1, 1)),
     }
-    def get_color(custom_object):
-        color = COLORS[custom_object.tied_object.invisible_color].copy()
-        if not custom_object.draw_edges:
+    def get_color(custom_object, geometry_type):
+        color = COLORS[custom_object.tied_to_object.invisible_color].copy()
+        if geometry_type == "faces":
             color.s *= 0.5
-        return (color.r, color.g, color.b) + ((1 if custom_object.draw_edges else 0.2),)
+        return (color.r, color.g, color.b) + ((1 if geometry_type == "edges" else 0.2),)
     
     INVISIBLE_OBJECT = custom_objects.create_shader(
         vertex=INVISIBLE_VERT,
@@ -35,34 +35,30 @@ def register(utils, package):
     invisible_objects = {}
     def destroy_invisible_object(object):
         if object.original in invisible_objects:
-            invisible_faces, invisible_edges = invisible_objects[object.original]
-            invisible_faces.destroy()
-            invisible_edges.destroy()
+            invisible_object = invisible_objects[object.original]
+            invisible_object.destroy()
             del invisible_objects[object.original]
     def update_is_invisible(object, context):
         destroy_invisible_object(object)
         if object.is_invisible:
-            invisible_faces = custom_objects.CustomObject(
+            invisible_object = custom_objects.CustomObject(
                 object=object, 
                 shader=INVISIBLE_OBJECT, 
-                gpu_states={
-                    "blend_set": "ALPHA",
-                    "face_culling_set": "NONE",
-                },
+                draw_geometry=("faces", "edges"),
                 draw_order=-10,
-                tied_to_object=True,
-            )
-            invisible_edges = custom_objects.CustomObject(
-                object=object, 
-                shader=INVISIBLE_OBJECT, 
                 gpu_states={
-                    "depth_test_set": "NONE",
+                    "faces": {
+                        "blend_set": "ALPHA",
+                        "face_culling_set": "NONE",
+                    },
+                    "edges": {
+                        "depth_test_set": "NONE",
+                    },
                 },
-                draw_order=-9,
-                draw_edges=True,
+                
                 tied_to_object=True,
             )
-            invisible_objects[object.original] = (invisible_faces, invisible_edges)
+            invisible_objects[object.original] = invisible_object
     bpy.types.Object.is_invisible = bpy.props.BoolProperty(default=False, update=update_is_invisible)
     bpy.types.Object.invisible_color = bpy.props.EnumProperty(items=[(key, key, "") for key in COLORS.keys()], default="Red")
 

@@ -168,7 +168,21 @@ def register(utils, package):
     DEFAULT_SHADERS = {}
     DEFAULT_VERT = shaders_path.joinpath("default_vert.glsl").read_text()
     DEFAULT_FRAG = shaders_path.joinpath("default_frag.glsl").read_text()
-
+    def get_default_shader(use_texture, use_color):
+        default_shader_config = (use_texture, use_color)
+        if default_shader_config in DEFAULT_SHADERS:
+            shader = DEFAULT_SHADERS[default_shader_config]
+        else:
+            shader = create_shader(
+                vertex=DEFAULT_VERT,
+                fragment=DEFAULT_FRAG,
+                attribs=("normal", "uv") + (("color",) if use_color else ()),
+                use_texture=use_texture,
+                uniforms=("sun_dir", "world_color", "sun_color")
+            )
+            DEFAULT_SHADERS[default_shader_config] = shader
+        return shader
+        
     def float3x3_to_bytes(mat):
         col = mat.col
         return struct.pack("3f4x3f4x3f4x", *(col[0][:] + col[1][:] + col[2][:]))
@@ -178,17 +192,21 @@ def register(utils, package):
     
     custom_objects = []
     class CustomObjectInstance:
-        def __init__(self, custom_object, matrix):
+        def __init__(self, custom_object, matrix=None, object=None):
             self.__custom_object = custom_object
+            self.object = object
             custom_object.instances.append(self)
 
             self.__transform = mathutils.Matrix.Identity(4)
             self.__scale = None
             self.__scale_matrix = None
             self.__matrix = None
-            translation, rotation, scale = matrix.decompose()
-            self.scale = scale
-            self.transform = mathutils.Matrix.LocRotScale(translation, rotation, None)
+            if object:
+                set_visibility(object, False)
+            else:
+                translation, rotation, scale = matrix.decompose()
+                self.scale = scale
+                self.transform = mathutils.Matrix.LocRotScale(translation, rotation, None)
 
         @property
         def transform(self):
@@ -213,37 +231,112 @@ def register(utils, package):
 
         @property
         def matrix(self):
-            return self.__matrix
+            if self.object:
+                if not utils.object_exists(self.object):
+                    self.destroy()
+                    return
+                
+                value = self.object.matrix_world
+                tied_matrix_get = self.__custom_object.tied_matrix_get
+                if tied_matrix_get:
+                    value = tied_matrix_get(value)
+                return value
+            else:
+                return self.__matrix
         @matrix.setter
         def matrix(self, value):
             if value != self.__matrix:
                 self.__matrix = value
                 utils.trigger_redraw()
 
+        def update_from_object(self):
+            translation = self.tied_instance_object.matrix_world.decompose()
+            self.transform = mathutils.Matrix.LocRotScale(translation, None, None)
+
         def destroy(self):
+            if self.object:
+                set_visibility(self.object, True)
             self.__custom_object.instances.remove(self)
+
+    tied_to_properties = {}
+    def update_object_property(object, tied_to_property):
+        if getattr(object, tied_to_property):
+            for custom_object in tied_to_properties[tied_to_property]:
+                CustomObjectInstance(custom_object, object=object)
+        else:
+            for custom_object in tied_to_properties[tied_to_property]:
+                for instance in custom_object.instances:
+                    if instance.object == object:
+                        instance.destroy()
+    
+    def object_visibility_change(object, is_visible):
+        object = object.original
+        for tied_to_property, tied_custom_objects in tied_to_properties.items():
+            if getattr(object, tied_to_property):
+                for custom_object in tied_custom_objects:
+                    tied_instance = None
+                    for instance in custom_object.instances:
+                        if instance.object == object:
+                            tied_instance = instance
+                            break
+                    if is_visible:
+                        if not tied_instance:
+                            CustomObjectInstance(custom_object, object=object)
+                            custom_object
+                    else:
+                        if tied_instance:
+                            tied_instance.destroy()
 
     global CustomObject
     class CustomObject:
-        def __init__(self, *, object, image=None, shader=None, gpu_states=None, draw_order=100, use_color=False, draw_edges=False, tied_to_object=False):
+        def __init__(self, *, 
+            object, 
+            image=None, 
+            use_color=False, 
+            shader=None, 
+
+            draw_geometry=("faces",),
+            draw_order=100, 
+            gpu_states=None, 
+
+            tied_to_object=False, 
+            tied_to_property=None,
+            tied_matrix_get=None,
+        ):
             if not shader:
-                use_texture = image != None
-                default_shader_config = (use_texture, use_color)
-                if default_shader_config in DEFAULT_SHADERS:
-                    shader = DEFAULT_SHADERS[default_shader_config]
-                else:
-                    shader = create_shader(
-                        vertex=DEFAULT_VERT,
-                        fragment=DEFAULT_FRAG,
-                        attribs=("normal", "uv") + (("color",) if use_color else ()),
-                        use_texture=use_texture,
-                        uniforms=("sun_dir", "world_color", "sun_color")
-                    )
-                    DEFAULT_SHADERS[default_shader_config] = shader
+                shader = get_default_shader(
+                    use_texture=(image != None),
+                    use_color=use_color
+                )
 
             self.__shader = shader["shader"]
             self.__vertex_attribs = shader["vertex_attribs"]
             self.__uniforms = shader["uniforms"]
+            self.__init_texture(image, shader)
+
+            self.__gpu_states = gpu_states
+            self.draw_order = draw_order if draw_order > 0 else LARGE_INT + draw_order
+            self.draw_geometry = draw_geometry
+
+            self.instances = []
+            self.tied_to_object = None
+            self.tied_to_property = tied_to_property
+            self.tied_matrix_get = tied_matrix_get
+            if tied_to_property:
+                if not tied_to_property in tied_to_properties:
+                    tied_to_properties[tied_to_property] = []
+                tied_to_properties[tied_to_property].append(self)
+                setattr(bpy.types.Object, tied_to_property, bpy.props.BoolProperty(
+                    default=False, update=lambda object, context: update_object_property(object, tied_to_property)
+                ))
+            if tied_to_object:
+                self.tied_to_object = object.original
+                CustomObjectInstance(self, object=object)
+            self.generate_batch(object)
+            self.is_destroyed = False
+            custom_objects.append(self)
+        
+        def __init_texture(self, image, shader):
             if image and shader["use_texture"]:
                 self.__texture = {}
                 if type(image) is dict:
@@ -255,87 +348,72 @@ def register(utils, package):
                         self.__texture[slot_name] = texture
             else:
                 self.__texture = None
-            self.__gpu_states = gpu_states
-            self.instances = []
-            self.draw_order = draw_order if draw_order > 0 else LARGE_INT + draw_order
-            self.draw_edges = draw_edges
 
-            self.tied_object = None
-            self.tied_instance = None
-            if tied_to_object:
-                set_visibility(object.original, False)
-                self.tied_object = object.original
-                self.tied_instance = CustomObjectInstance(self, object.matrix_world)
-            self.generate_batch(object)
-            self.is_destroyed = False
-            custom_objects.append(self)
-        
-        def generate_batch(self, object):
-            indices = []
-            load_attribs = {}
+        def __generate_faces(self, mesh):
+            pos_attribs = []
+            color_attribs = []
+            normal_attribs = []
+            uv_attribs = []
+            vertex_attribs = {
+                "pos": pos_attribs,
+                "color": color_attribs,
+                "normal": normal_attribs,
+                "uv": uv_attribs,
+            }
 
-            object.update_from_editmode()
-            if self.tied_object:
-                set_visibility(self.tied_object, False)
-            mesh = object.data
             vertices = mesh.vertices
-            if not self.draw_edges:
-                pos_attribs = []
-                color_attribs = []
-                normal_attribs = []
-                uv_attribs = []
-                vertex_attribs = {
-                    "pos": pos_attribs,
-                    "color": color_attribs,
-                    "normal": normal_attribs,
-                    "uv": uv_attribs,
-                }
+            loop_uvs = mesh.uv_layers.active and mesh.uv_layers.active.uv
+            loop_colors = mesh.color_attributes.active_color and mesh.color_attributes.active_color.data
+            for loop in mesh.loops:
+                pos_attribs.append(vertices[loop.vertex_index].co.copy())
+                normal_attribs.append(loop.normal.copy())
+                if loop_uvs:
+                    uv_attribs.append(loop_uvs[loop.index].vector.copy())
+                if loop_colors:
+                    color = loop_colors[loop.index].color_srgb
+                    color_attribs.append(mathutils.Vector((color[0], color[1], color[2])))
 
-                loop_uvs = mesh.uv_layers.active and mesh.uv_layers.active.uv
-                loop_colors = mesh.color_attributes.active_color and mesh.color_attributes.active_color.data
-                for loop in mesh.loops:
-                    pos_attribs.append(vertices[loop.vertex_index].co.copy())
-                    normal_attribs.append(loop.normal.copy())
-                    if loop_uvs:
-                        uv_attribs.append(loop_uvs[loop.index].vector.copy())
-                    if loop_colors:
-                        color = loop_colors[loop.index].color_srgb
-                        color_attribs.append(mathutils.Vector((color[0], color[1], color[2])))
+            load_attribs = {}
+            for attrib in self.__vertex_attribs:
+                if attrib in vertex_attribs:
+                    load_attribs[attrib] = vertex_attribs[attrib]
+            indices = []
+            for loop_triangle in mesh.loop_triangles:
+                indices.append(tuple(loop_triangle.loops))
+            return batch_for_shader(self.__shader, "TRIS", load_attribs, indices=indices)
+        
+        def __generate_edges(self, mesh):
+            load_attribs = {"pos": [v.co.copy() for v in mesh.vertices]}
+            indices = []
+            for edge in mesh.edges:
+                indices.append(tuple(edge.vertices))
+            return batch_for_shader(self.__shader, "LINES", load_attribs, indices=indices)
 
-                load_attribs = {}
-                for attrib in self.__vertex_attribs:
-                    if attrib in vertex_attribs:
-                        load_attribs[attrib] = vertex_attribs[attrib]
+        def generate_batch(self, object):
+            object.update_from_editmode()
+            if self.tied_to_object:
+                set_visibility(self.tied_to_object, False)
 
-                for loop_triangle in mesh.loop_triangles:
-                    indices.append(tuple(loop_triangle.loops))
-            else:
-                load_attribs["pos"] = [v.co.copy() for v in vertices]
-                for edge in mesh.edges:
-                    indices.append(tuple(edge.vertices))
-            self.__batch = batch_for_shader(self.__shader, "LINES" if self.draw_edges else "TRIS", load_attribs, indices=indices)
+            generate_geometry = {
+                "faces": self.__generate_faces,
+                "edges": self.__generate_edges
+            }
+            
+            mesh = object.data
+            self.__batches = {}
+            for geometry_type in self.draw_geometry:
+                self.__batches[geometry_type] = generate_geometry[geometry_type](mesh)
             utils.trigger_redraw()
 
         def new(self, *, matrix=None, transform=mathutils.Matrix(), scale=mathutils.Vector((1, 1, 1))):
-            if self.tied_instance:
+            if self.tied_to_object or self.tied_to_property:
                 raise Exception("Attempted to create instance of a tied custom object")
             if not matrix:
                 matrix = transform @ mathutils.Matrix.to_4x4(mathutils.Matrix.Diagonal(scale))
-            new_instance = CustomObjectInstance(self, matrix)
+            new_instance = CustomObjectInstance(self, matrix=matrix)
             return new_instance
         
-        def render(self, view_projection_matrix, common):
-            if self.tied_object and (not utils.object_exists(self.tied_object)):
-                self.destroy()
-                return
-            
-            buf = b""
-            for instance in self.instances:
-                mat = instance.matrix
-                buf += float4x4_to_bytes(view_projection_matrix @ mat)
-                buf += float3x3_to_bytes(mat.to_3x3().inverted().transposed())
-
-            buf = gpu.types.GPUUniformBuf(buf)
+        def __prep_render(self, geometry_type, buf, common):
             self.__shader.uniform_block("my_struct", buf)
             if self.__uniforms:
                 for uniform in self.__uniforms:
@@ -345,7 +423,7 @@ def register(utils, package):
                     else:
                         uniform_name, uniform_info = uniform
 
-                    uniform_value = uniform_info["get_value"](self) if "get_value" in uniform_info else common[uniform_name]
+                    uniform_value = uniform_info["get_value"](self, geometry_type) if "get_value" in uniform_info else common[uniform_name]
                     getattr(self.__shader, uniform_info["set"])(uniform_name, uniform_value)
             if self.__texture:
                 if type(self.__texture) is dict:
@@ -353,13 +431,35 @@ def register(utils, package):
                         self.__shader.uniform_sampler(slot_name, texture)
                 else:
                     self.__shader.uniform_sampler("image", self.__texture)
-            with utils.gpu_state(self.__gpu_states):
-                self.__batch.draw_instanced(self.__shader, instance_start=0, instance_count=len(self.instances))
+            
+        def render(self, view_projection_matrix, common):
+            if self.tied_to_object and (not utils.object_exists(self.tied_to_object)):
+                self.destroy()
+                return
+            
+            buf = b""
+            draw_count = 0
+            for instance in self.instances:
+                mat = instance.matrix
+                if mat:
+                    buf += float4x4_to_bytes(view_projection_matrix @ mat)
+                    buf += float3x3_to_bytes(mat.to_3x3().inverted().transposed())
+                    draw_count += 1
+            buf = gpu.types.GPUUniformBuf(buf)
+            
+            for geometry_type, batch in self.__batches.items():
+                gpu_states = self.__gpu_states
+                if gpu_states and (geometry_type in gpu_states):
+                    gpu_states = gpu_states[geometry_type]
+                self.__prep_render(geometry_type, buf, common)
+                with utils.gpu_state(gpu_states):
+                    batch.draw_instanced(self.__shader, instance_start=0, instance_count=draw_count)
         
         def destroy(self):
-            if self.tied_object:
-                set_visibility(self.tied_object, True)
-                self.tied_instance.destroy()
+            for instance in self.instances:
+                instance.destroy()
+            if self.tied_to_property:
+                tied_to_properties[self.tied_to_property].remove(self)
             self.is_destroyed = True
             custom_objects.remove(self)
 
@@ -376,23 +476,13 @@ def register(utils, package):
                 custom_object.render(view_projection_matrix, common)
 
     def depsgraph_update(depsgraph):
-        updated_geometry = []
-        updated_transform = []
         for depsgraph_update in depsgraph.updates:
-            id = depsgraph_update.id
-            if type(id) is bpy.types.Object:
-                if depsgraph_update.is_updated_geometry:
-                    updated_geometry.append(id.original)
-                if depsgraph_update.is_updated_transform:
-                    updated_transform.append(id.original)
-        
-        for custom_object in custom_objects:
-            tied_object = custom_object.tied_object
-            if tied_object:
-                if tied_object in updated_geometry:
-                    custom_object.generate_batch(tied_object)
-                if tied_object in updated_transform:
-                    custom_object.tied_instance.matrix = tied_object.matrix_world
+            id = depsgraph_update.id.original
+            if (type(id) is bpy.types.Object) and depsgraph_update.is_updated_geometry:
+                for custom_object in custom_objects:
+                    if custom_object.tied_to_object == id:
+                        custom_object.generate_batch(id)
+                    
     def post_registration():
         bpy.types.Object.visible_settings = bpy.props.PointerProperty(type=VisibleSettings)
     return {
@@ -400,6 +490,7 @@ def register(utils, package):
         "listeners": (
             utils.listen_draw(draw_callback_3d, priority=-1),
             utils.listen_depsgraph_update(depsgraph_update),
+            utils.listen_object_visibility_change(object_visibility_change),
         ),
         "post_registration": post_registration,
     }
