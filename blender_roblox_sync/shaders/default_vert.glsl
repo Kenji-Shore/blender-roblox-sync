@@ -4,6 +4,6 @@ void main()
 	#ifdef USE_COLOR
 	colorInterp = color;
 	#endif
-	normalInterp = my_struct[gl_InstanceID].normalMatrix * normal;
-	gl_Position = my_struct[gl_InstanceID].modelViewMatrix * vec4(pos, 1.0f);
+	normalInterp = instance_uniforms[gl_InstanceID].normal_matrix * normal;
+	gl_Position = instance_uniforms[gl_InstanceID].model_view_matrix * vec4(pos, 1.0f);
 }

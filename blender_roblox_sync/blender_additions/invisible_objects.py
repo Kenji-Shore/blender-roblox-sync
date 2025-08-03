@@ -16,8 +16,8 @@ def register(utils, package):
         "Brown": mathutils.Color((0.5, 0.25, 0)),
         "White": mathutils.Color((1, 1, 1)),
     }
-    def get_color(custom_object, geometry_type):
-        color = COLORS[custom_object.tied_to_object.invisible_color].copy()
+    def get_color(instance, states, geometry_type):
+        color = COLORS[instance.custom_object.tied_to_object.invisible_color].copy()
         if geometry_type == "faces":
             color.s *= 0.5
         return (color.r, color.g, color.b) + ((1 if geometry_type == "edges" else 0.2),)
@@ -27,9 +27,10 @@ def register(utils, package):
         fragment=INVISIBLE_FRAG,
         uniforms=(("color", {
             "type": "VEC4",
-            "set": "uniform_float",
-            "get_value": get_color,
-        }),)
+            "instance": True,
+            "value": get_color,
+        }),),
+        interfaces={"color": ("flat", "VEC4")},
     )
 
     invisible_objects = {}
@@ -48,7 +49,6 @@ def register(utils, package):
                 draw_order=-10,
                 gpu_states={
                     "faces": {
-                        "blend_set": "ALPHA",
                         "face_culling_set": "NONE",
                     },
                     "edges": {

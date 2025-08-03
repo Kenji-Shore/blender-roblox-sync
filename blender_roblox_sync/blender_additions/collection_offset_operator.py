@@ -1,6 +1,24 @@
-import bpy, mathutils, math
+import bpy, mathutils, math, gpu
 
 def register(utils, package):
+    custom_objects = utils.import_module("custom_objects")
+    shaders_path = utils.get_path(package, "shaders")
+    GRID_VERT = shaders_path.joinpath("uniform_color_vert.glsl").read_text()
+    GRID_FRAG = shaders_path.joinpath("uniform_color_frag.glsl").read_text()
+
+    def get_color(instance, states, geometry_type):
+        return instance.color
+    GRID = custom_objects.create_shader(
+        vertex=GRID_VERT,
+        fragment=GRID_FRAG,
+        uniforms=(("color", {
+            "type": "VEC4",
+            "instance": True,
+            "value": get_color,
+        }),),
+        interfaces={"color": ("flat", "VEC4")},
+    )
+
     AXES = {
         "x_offset": (mathutils.Euler((0, math.radians(90), 0)), mathutils.Vector((0, 1, 1)), mathutils.Color((1, 0, 0))),
         "y_offset": (mathutils.Euler((math.radians(-90), 0, 0)), mathutils.Vector((1, 0, 1)), mathutils.Color((0, 1, 0))),
@@ -76,10 +94,45 @@ def register(utils, package):
     class WidgetGroup2(bpy.types.GizmoGroup, TestClass):
         bl_idname = "meowmeow2"
         bl_options = TestClass.bl_options | {"DEPTH_3D"}
-    
+
+    def post_registration_loaded():
+        resources_path = utils.get_path(package, "resources")
+        with utils.load_resources(resources_path.joinpath("Grid.blend"), "objects") as resources:
+            grid = custom_objects.CustomObject(
+                object=resources["objects"]["Grid"], 
+                shader=GRID,
+                draw_order=-10,
+            )
+        
+        scale = mathutils.Vector((0.5, 0.5, 0.5))
+        xy = grid.new(
+            transform=mathutils.Matrix.LocRotScale(mathutils.Vector((40, -4, 1)), mathutils.Euler((0, 0.5 * math.pi, 0)).to_quaternion(), None),
+            scale=scale
+        )
+        xz = grid.new(
+            transform=mathutils.Matrix.LocRotScale(mathutils.Vector((40.005, -4, 1)), mathutils.Euler((0.5 * math.pi, 0, 0)).to_quaternion(), None),
+            scale=scale
+        )
+        yz = grid.new(
+            transform=mathutils.Matrix.LocRotScale(mathutils.Vector((40, -4, 1.005)), mathutils.Euler((0, 0, 0)).to_quaternion(), None),
+            scale=scale
+        )
+        xy.color = (0.9, 0.3, 0.3, 1)
+        xz.color = (0.3, 0.9, 0.3, 1)
+        yz.color = (0.3, 0.3, 0.9, 1)
+
+        rot_vector = mathutils.Vector((1, 2, 3))
+        rot = mathutils.Quaternion()
+        # def draw_callback_3d(delta_time):
+        #     nonlocal rot
+        #     rot = rot @ mathutils.Euler((rot_vector * delta_time)[:]).to_quaternion()
+        #     zoop.transform = mathutils.Matrix.LocRotScale(mathutils.Vector((40, -4, 1)), rot, None)
+        # utils.listen_draw(draw_callback_3d)
+
     def draw(layout, context):
         layout.label(text="Currently Syncing:")
     return {
         # "classes": (WidgetGroup, WidgetGroup2,),
+        "post_registration_loaded": post_registration_loaded,
         "draw": draw
     }
