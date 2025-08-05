@@ -54,7 +54,7 @@ class Utils:
             self.__loaded_addons.append(root_package)
             self.addon_paths[root_package] = addon_path
             self.__lookup_package[root_file_path] = root_package
-            self.__addon_draws[root_package] = []
+            self.__addon_draws[root_package] = {}
             for module_name, module in self.glob_from_parent(root_file_path_name, "**/*.py").items():
                 if hasattr(module, "register"):
                     if module_name in self.__modules:
@@ -85,13 +85,21 @@ class Utils:
                     if "draw" in returns:
                         draw = returns["draw"]
                         addon_draws = self.__addon_draws[root_package]
-                        if not type(draw) is tuple:
-                            draw = (draw, math.inf)
-                        priority = draw[1]
-                        list_len = len(addon_draws)
+                        if not "priority" in draw:
+                            draw["priority"] = math.inf
+                        if not "assign_to" in draw:
+                            draw["assign_to"] = "root"
+
+                        priority = draw["priority"]
+                        assign_to = draw["assign_to"]
+                        if not assign_to in addon_draws:
+                            addon_draws[assign_to] = []
+                        layout = addon_draws[assign_to]
+
+                        list_len = len(layout)
                         for i in range(list_len + 1):
-                            if i == list_len or priority <= addon_draws[i][1]:
-                                addon_draws.insert(i, draw)
+                            if i == list_len or priority <= layout[i]["priority"]:
+                                layout.insert(i, draw)
                                 break
                     self.__registered_modules_returns.append(returns)
                 self.__registered_modules.append(module_name)
@@ -258,17 +266,56 @@ class Utils:
             return True
         except:
             return False
-        
+    
+    def dict_get_id(self, dict, key): #safe dict get when key might be a deleted ID
+        try:
+            key.id_type
+            return dict.get(key)
+        except:
+            for other_key, value in dict.items():
+                if key == other_key:
+                    return value
+                
+    def dict_remove_id(self, dict, key): #safe dict remove when key might be a deleted ID
+        try:
+            del dict[key]
+        except:
+            filtered = {k: v for k, v in dict.items() if k != key}
+            dict.clear()
+            dict.update(filtered)
+
+    def list_has_id(self, list, value): #safe list get when value might be a deleted ID
+        try:
+            value.id_type
+            return value in list
+        except:
+            for other_value in list:
+                if value == other_value:
+                    return True
+        return False
+                
+    def list_remove_id(self, list, value): #safe list remove when value might be a deleted ID
+        try:
+            value.id_type
+            list.remove(value)
+        except:
+            list[:] = [v for v in list if v != value]
+
+    def draw_layout(self, group_name, layout, context, *args):
+        if group_name in self.__store_addon_draws:
+            for draw in self.__store_addon_draws[group_name]:
+                draw["function"](layout, context, *args)
     def __create_panel(self, root_package_name, addon_draws):
         store_addon_draws = addon_draws.copy()
+        def store_draw_root_layout(layout, context):
+            self.__store_addon_draws = store_addon_draws
+            self.draw_layout("root", layout, context)
         def panelDraw(self, context):
-            layout = self.layout
-            for draw, _ in store_addon_draws:
-                draw(layout, context)
+            store_draw_root_layout(self.layout, context)
         panelClass = type(f"VIEW3D_PT_{root_package_name}", (bpy.types.Panel,), {
             "bl_space_type": "VIEW_3D",
             "bl_region_type": "UI",
-            "bl_category": root_package_name,
+            "bl_category": "Roblox",
             "bl_label": root_package_name,
             "draw": panelDraw
         })
@@ -321,15 +368,18 @@ class Utils:
             nonlocal last_mode
             
             if post_registration_finished:
+                all_objects = set(bpy.data.objects.values())
                 new_objects = set(bpy.context.visible_objects)
-                changed_objects = new_objects ^ (existing_objects & set(bpy.data.objects.values()))
+                changed_objects = new_objects ^ existing_objects
                 existing_objects = new_objects
                 depsgraph = bpy.context.evaluated_depsgraph_get()
                 for object in changed_objects:
                     is_visible = object in new_objects
-                    object = object.evaluated_get(depsgraph)
+                    object_exists = object in all_objects
+                    if object_exists:
+                        object.matrix_world = object.evaluated_get(depsgraph).matrix_world
                     for callback in self.__listen_object_visibility_changes.values():
-                        callback(object, is_visible)
+                        callback(object, is_visible, object_exists)
 
             if self.__trigger_redraws > 0:
                 self.__trigger_redraws = 0

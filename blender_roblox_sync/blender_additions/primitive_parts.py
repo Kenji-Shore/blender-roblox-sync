@@ -29,7 +29,7 @@ def register(utils, package):
             PRIMITIVE_TYPES[object.primitive_type]["bmesh"].to_mesh(object.data)
 
     bpy.types.Object.is_primitive = bpy.props.BoolProperty(default=False)
-    bpy.types.Object.primitive_type = bpy.props.EnumProperty(items=[(key, key, "") for key in PRIMITIVE_TYPES.keys()], default="Block", update=update_primitive_type)
+    bpy.types.Object.primitive_type = bpy.props.EnumProperty(items=[(key, key, "", PRIMITIVE_TYPES[key]["icon"], PRIMITIVE_TYPES[key]["id"]) for key in PRIMITIVE_TYPES.keys()], default="Block", update=update_primitive_type)
     bpy.types.Object.primitive_lock_scale = bpy.props.FloatProperty()
     bpy.types.Scene.insert_primitive_type = bpy.props.EnumProperty(items=[(key, key, "", PRIMITIVE_TYPES[key]["icon"], PRIMITIVE_TYPES[key]["id"]) for key in PRIMITIVE_TYPES.keys()], default="Block")
 
@@ -84,21 +84,13 @@ def register(utils, package):
 
             print("inserting", object)
             return {"FINISHED"}
-        
-    def draw(layout, context):
-        box = layout.box()
-        col = box.column()
-        col.label(text="Insert Primitive:")
-        split = col.split(factor=0.6)
-        split.prop(context.scene, "insert_primitive_type", text="")
-        split.operator("view3d.insert_primitive", text="Insert")
 
     def primitive_part_updated(depsgraph):
         for depsgraph_update in depsgraph.updates:
-            object = depsgraph_update.id
-            if (type(object) is bpy.types.Object) and object.is_primitive and depsgraph_update.is_updated_transform:
-                primitive_update_transform(object.original)
-                utils.delay(primitive_update_transform, object)
+            id = depsgraph_update.id.original
+            if (type(id) is bpy.types.Object) and id.is_primitive and depsgraph_update.is_updated_transform:
+                primitive_update_transform(id)
+                utils.delay(primitive_update_transform, id)
 
     def exit_object_mode(new_mode):
         active_object = bpy.context.active_object
@@ -118,12 +110,27 @@ def register(utils, package):
                     primitive_mesh.from_mesh(object.data)
                 PRIMITIVE_TYPES[primitive_name]["bmesh"] = primitive_mesh
 
+    # col = layout.column()
+    # col.label(text="Insert Primitive:")
+    # split = col.split(factor=0.6)
+    # split.prop(context.scene, "insert_primitive_type", text="")
+    # split.operator("view3d.insert_primitive", text="Insert")
+
+    def draw(layout, context, currently_selected):
+        if currently_selected.is_primitive:
+            layout.prop(currently_selected, "is_primitive", text="Is Primitive")
+            # split = layout.split(factor=0.5)
+            # split.label(text="Primitive Type: ")
+            layout.prop(currently_selected, "primitive_type", text="Shape")
     return {
         "classes": (VIEW3D_OT_insert_primitive,),
         "listeners": (
             utils.listen_mode(("OBJECT",), exit=exit_object_mode, priority=0),
             utils.listen_depsgraph_update(primitive_part_updated),
         ),
-        "draw": draw,
+        "draw": {
+            "function": draw,
+            "assign_to": "object_properties",
+        },
         "post_registration_loaded": post_registration_loaded
     }

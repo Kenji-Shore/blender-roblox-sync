@@ -120,6 +120,10 @@ def register(utils, package):
             "syncing_list": bpy.props.CollectionProperty(type=SyncingAssetPrefs),
             "syncing_index": bpy.props.IntProperty(default=0)
         },
-        "draw": (draw, 0),
-        "post_registration": post_registration
+        "post_registration": post_registration,
+        "draw": {
+            "function": draw, 
+            "assign_to": "syncing_panel",
+            "priority": 0
+        },
     }

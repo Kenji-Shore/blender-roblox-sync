@@ -37,8 +37,11 @@ def register(utils, package):
         row2 = col2.row()
         row2.progress(factor=0.5)
         row2.scale_y = 0.4
-
     return {
         "classes": (VIEW3D_OT_toggle_roblox_sync,),
-        "draw": (draw, 1),
+        "draw": {
+            "function": draw, 
+            "assign_to": "syncing_panel",
+            "priority": 1
+        },
     }

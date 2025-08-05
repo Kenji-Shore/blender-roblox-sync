@@ -29,19 +29,20 @@ def register(utils, package):
     for axis in AXES.keys():
         setattr(bpy.types.Collection, axis, bpy.props.FloatProperty(default=0, update=update_axis))
 
-    class TestClass():
-        bl_label = "Test Light Widget"
-        bl_space_type = 'VIEW_3D'
-        bl_region_type = 'WINDOW'
+    class CollectionOffset(bpy.types.GizmoGroup):
+        bl_idname = "OBJECT_GGT_collection_offset"
+        bl_label = "Collection Offset Widget"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "WINDOW"
         bl_options = {"3D", "PERSISTENT", "SCALE"}
         is_inner = False
 
         @classmethod
         def poll(cls, context):
-            return context.collection != None
+            return context.scene.editing_collection != None
 
         def setup(self, context):
-            self.target = context.collection
+            self.target = context.scene.editing_collection
             self.arrows = {}
 
             instance_offset = self.target.instance_offset
@@ -80,6 +81,11 @@ def register(utils, package):
 
         def refresh(self, context):
             instance_offset = self.target.instance_offset
+            for grid_info in GRIDS.values():
+                grid_instance = grid_info["grid_instance"]
+                grid_instance.transform = mathutils.Matrix.LocRotScale(instance_offset, grid_info["rot"], None)
+                grid_instance.visible = True
+
             for axis, arrow in self.arrows.items():
                 orientation, mask, _ = AXES[axis]
                 offset = instance_offset.copy()
@@ -88,13 +94,28 @@ def register(utils, package):
                     offset *= mask
                 arrow.matrix_basis = mathutils.Matrix.LocRotScale(offset, orientation, None)
     
-    class WidgetGroup(bpy.types.GizmoGroup, TestClass):
-        bl_idname = "meowmeow"
-        is_inner = True
-    class WidgetGroup2(bpy.types.GizmoGroup, TestClass):
-        bl_idname = "meowmeow2"
-        bl_options = TestClass.bl_options | {"DEPTH_3D"}
+    # class WidgetGroup(bpy.types.GizmoGroup, TestClass):
+    #     bl_idname = "meowmeow"
+    #     is_inner = True
+    # class WidgetGroup2(bpy.types.GizmoGroup, TestClass):
+    #     bl_idname = "meowmeow2"
+    #     bl_options = TestClass.bl_options | {"DEPTH_3D"}
 
+    GRID_SCALE = mathutils.Vector((0.5, 0.5, 0.5))
+    GRIDS = {
+        "xy": {
+            "rot": mathutils.Euler((0, 0.5 * math.pi, 0)).to_quaternion(),
+            "color": (0.9, 0.3, 0.3, 1),
+        },
+        "xz": {
+            "rot": mathutils.Euler((0.5 * math.pi, 0, 0)).to_quaternion(),
+            "color": (0.3, 0.9, 0.3, 1),
+        },
+        "yz": {
+            "rot": mathutils.Euler((0, 0, 0)).to_quaternion(),
+            "color": (0.3, 0.3, 0.9, 1),
+        }
+    }
     def post_registration_loaded():
         resources_path = utils.get_path(package, "resources")
         with utils.load_resources(resources_path.joinpath("Grid.blend"), "objects") as resources:
@@ -104,35 +125,23 @@ def register(utils, package):
                 draw_order=-10,
             )
         
-        scale = mathutils.Vector((0.5, 0.5, 0.5))
-        xy = grid.new(
-            transform=mathutils.Matrix.LocRotScale(mathutils.Vector((40, -4, 1)), mathutils.Euler((0, 0.5 * math.pi, 0)).to_quaternion(), None),
-            scale=scale
-        )
-        xz = grid.new(
-            transform=mathutils.Matrix.LocRotScale(mathutils.Vector((40.005, -4, 1)), mathutils.Euler((0.5 * math.pi, 0, 0)).to_quaternion(), None),
-            scale=scale
-        )
-        yz = grid.new(
-            transform=mathutils.Matrix.LocRotScale(mathutils.Vector((40, -4, 1.005)), mathutils.Euler((0, 0, 0)).to_quaternion(), None),
-            scale=scale
-        )
-        xy.color = (0.9, 0.3, 0.3, 1)
-        xz.color = (0.3, 0.9, 0.3, 1)
-        yz.color = (0.3, 0.3, 0.9, 1)
+        for grid_info in GRIDS.values():
+            grid_instance = grid.new(
+                transform=mathutils.Matrix.LocRotScale(mathutils.Vector(), grid_info["rot"], None),
+                scale=GRID_SCALE
+            )
+            grid_instance.color = grid_info["color"]
+            grid_instance.visible = False
+            grid_info["grid_instance"] = grid_instance
 
-        rot_vector = mathutils.Vector((1, 2, 3))
-        rot = mathutils.Quaternion()
-        # def draw_callback_3d(delta_time):
-        #     nonlocal rot
-        #     rot = rot @ mathutils.Euler((rot_vector * delta_time)[:]).to_quaternion()
-        #     zoop.transform = mathutils.Matrix.LocRotScale(mathutils.Vector((40, -4, 1)), rot, None)
-        # utils.listen_draw(draw_callback_3d)
-
-    def draw(layout, context):
+    def draw(layout, context, editing_collection):
         layout.label(text="Currently Syncing:")
+    
     return {
-        # "classes": (WidgetGroup, WidgetGroup2,),
+        "classes": (CollectionOffset,),
         "post_registration_loaded": post_registration_loaded,
-        "draw": draw
+        "draw": {
+            "function": draw,
+            "assign_to": "collection_properties"
+        },
     }

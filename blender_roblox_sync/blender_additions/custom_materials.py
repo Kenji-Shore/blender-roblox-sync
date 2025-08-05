@@ -2,6 +2,7 @@ import bpy, bl_ui, mathutils
 
 def register(utils, package):
     multi_vertex_paint = utils.import_module("multi_vertex_paint")
+    custom_objects = utils.import_module("custom_objects")
 
     def get_node_setup(mat):
         node_properties = {}
@@ -307,23 +308,80 @@ def register(utils, package):
             init_custom_material(self)
         else:
             disable_custom_material(self)
+
+    
+    def update_scroll_material(self, _=None):
+        update_use_custom_material(self)
     bpy.types.Material.use_custom_material = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
     bpy.types.Material.use_image_transparency = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
-    bpy.types.Material.use_scroll_texture = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
+    bpy.types.Material.use_scroll_texture = bpy.props.BoolProperty(default=False, update=update_scroll_material)
     bpy.types.Material.scroll_speed = bpy.props.FloatProperty(default=1, min=-10, max=10, update=update_use_custom_material)
 
     def material_added():
-        update_use_custom_material(bpy.context.material)
+        if hasattr(bpy.context, "material"):
+            update_use_custom_material(bpy.context.material)
+
+    objects_assigned_materials = {}
+    materials_assignee_objects = {}
     def load_post(file):
         bpy.context.scene.frame_start = 1
         bpy.context.scene.frame_end = 60
         bpy.ops.screen.animation_play()
         for mat in bpy.data.materials:
             update_use_custom_material(mat)
+    
+    def update_object_material(object, is_visible=True):
+        existing_materials = set()
+        assigned_materials = utils.dict_get_id(objects_assigned_materials, object)
+        if assigned_materials != None:
+            for assigned_material in assigned_materials:
+                existing_materials.add(assigned_material)
+
+        new_materials = set()
+        if is_visible and (object.type == "MESH"):
+            for material_slot in object.material_slots:
+                material = material_slot.material
+                if material:
+                    new_materials.add(material)
+        
+        assigned_materials = utils.dict_get_id(objects_assigned_materials, object)
+        if assigned_materials != None:
+            for material in (existing_materials - new_materials):
+                assignee_objects = utils.dict_get_id(materials_assignee_objects, material)
+                utils.list_remove_id(assigned_materials, material)
+                utils.list_remove_id(assignee_objects, object)
+                if len(assignee_objects) == 0:
+                    utils.dict_remove_id(materials_assignee_objects, material)
+
+        if is_visible:
+            if not assigned_materials:
+                assigned_materials = []
+                objects_assigned_materials[object] = assigned_materials
+            for material in (new_materials - existing_materials):
+                assignee_objects = materials_assignee_objects[material] if material in materials_assignee_objects else []
+                materials_assignee_objects[material] = assignee_objects
+                assignee_objects.append(object)
+                assigned_materials.append(material)
+
+        if (assigned_materials != None) and (len(assigned_materials) == 0):
+            utils.dict_remove_id(objects_assigned_materials, object)
+        
+    def depsgraph_update(depsgraph):
+        for depsgraph_update in depsgraph.updates:
+            id = depsgraph_update.id.original
+            if (type(id) is bpy.types.Object) and depsgraph_update.is_updated_shading: #.is_updated_geometry: #is_updated_shading
+                update_object_material(id)
+    def material_slot_removed():
+        update_object_material(bpy.context.active_object)
+    def object_visibility_change(object, is_visible, object_exists):
+        update_object_material(object, is_visible)
     return {
         "classes": (EEVEE_MATERIAL_PT_surface,),
         "listeners": (
             utils.listen_operator("MATERIAL_OT_new", material_added),
+            utils.listen_operator("OBJECT_OT_material_slot_remove", material_slot_removed),
             utils.listen_handler("load_post", load_post),
+            utils.listen_depsgraph_update(depsgraph_update),
+            utils.listen_object_visibility_change(object_visibility_change)
         ),
     }

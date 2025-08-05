@@ -2,7 +2,6 @@ import bpy, mathutils
 
 def register(utils, package):
     custom_objects = utils.import_module("custom_objects")
-    
     shaders_path = utils.get_path(package, "shaders")
     INVISIBLE_VERT = shaders_path.joinpath("uniform_color_vert.glsl").read_text()
     INVISIBLE_FRAG = shaders_path.joinpath("uniform_color_frag.glsl").read_text()
@@ -35,10 +34,10 @@ def register(utils, package):
 
     invisible_objects = {}
     def destroy_invisible_object(object):
-        if object.original in invisible_objects:
-            invisible_object = invisible_objects[object.original]
+        invisible_object = utils.dict_get_id(invisible_objects, object)
+        if invisible_object:
             invisible_object.destroy()
-            del invisible_objects[object.original]
+            utils.dict_remove_id(invisible_objects, object)
     def update_is_invisible(object, context):
         destroy_invisible_object(object)
         if object.is_invisible:
@@ -58,25 +57,23 @@ def register(utils, package):
                 
                 tied_to_object=True,
             )
-            invisible_objects[object.original] = invisible_object
+            invisible_objects[object] = invisible_object
     bpy.types.Object.is_invisible = bpy.props.BoolProperty(default=False, update=update_is_invisible)
     bpy.types.Object.invisible_color = bpy.props.EnumProperty(items=[(key, key, "") for key in COLORS.keys()], default="Red")
 
-    def object_visibility_change(object, is_visible):
+    def object_visibility_change(object, is_visible, object_exists):
         if is_visible:
             update_is_invisible(object, bpy.context)
         else:
             destroy_invisible_object(object)
-    def draw(layout, context):
-        box = layout.box()
-        active_object = bpy.context.object
-        if active_object:
-            row = box.row()
-            row.prop(active_object, "is_invisible", text="Is Invisible")
-            if active_object.is_invisible:
-                row = box.row()
-                row.prop(active_object, "invisible_color", text="Color")
+    def draw(layout, context, currently_selected):
+        layout.prop(currently_selected, "is_invisible", text="Is Invisible")
+        if currently_selected.is_invisible:
+            layout.prop(currently_selected, "invisible_color", text="Color")
     return {
         "listeners": (utils.listen_object_visibility_change(object_visibility_change),),
-        "draw": draw,
+        "draw": {
+            "function": draw,
+            "assign_to": "object_properties",
+        },
     }

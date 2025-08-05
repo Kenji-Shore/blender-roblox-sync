@@ -34,15 +34,20 @@ def register(utils, package):
         pass
     for property_name, default_setting in VISIBLE_SETTINGS.items():
         VisibleSettings.__annotations__[property_name] = bpy.props.BoolProperty(default=default_setting)
+    bpy.types.Object.is_visible = bpy.props.BoolProperty(default=True)
+
     def set_visibility(object, is_visible):
         if utils.object_exists(object):
             if is_visible:
                 for property_name, default_setting in VISIBLE_SETTINGS.items():
                     setattr(object, property_name, getattr(object.visible_settings, property_name))
             else:
+                if object.is_visible:
+                    for property_name, default_setting in VISIBLE_SETTINGS.items():
+                        setattr(object.visible_settings, property_name, getattr(object, property_name))
                 for property_name, default_setting in VISIBLE_SETTINGS.items():
-                    setattr(object.visible_settings, property_name, getattr(object, property_name))
                     setattr(object, property_name, not default_setting)
+            object.is_visible = is_visible
 
     def get_world_lighting():
         world = bpy.context.scene.world
@@ -257,6 +262,7 @@ def register(utils, package):
         def __init__(self, custom_object, matrix=None, object=None):
             self.custom_object = custom_object
             self.object = object
+            self.visible = True
             custom_object.instances.append(self)
 
             self.__transform = mathutils.Matrix.Identity(4)
@@ -327,23 +333,23 @@ def register(utils, package):
                     if instance.object == object:
                         instance.destroy()
     
-    def object_visibility_change(object, is_visible):
-        object = object.original
-        for tied_to_property, tied_custom_objects in tied_to_properties.items():
-            if getattr(object, tied_to_property):
-                for custom_object in tied_custom_objects:
-                    tied_instance = None
-                    for instance in custom_object.instances:
-                        if instance.object == object:
-                            tied_instance = instance
-                            break
-                    if is_visible:
-                        if not tied_instance:
-                            CustomObjectInstance(custom_object, object=object)
-                            custom_object
-                    else:
-                        if tied_instance:
-                            tied_instance.destroy()
+    def object_visibility_change(object, is_visible, object_exists):
+        if object_exists:
+            for tied_to_property, tied_custom_objects in tied_to_properties.items():
+                if getattr(object, tied_to_property):
+                    for custom_object in tied_custom_objects:
+                        tied_instance = None
+                        for instance in custom_object.instances:
+                            if instance.object == object:
+                                tied_instance = instance
+                                break
+                        if is_visible:
+                            if not tied_instance:
+                                CustomObjectInstance(custom_object, object=object)
+                                custom_object
+                        else:
+                            if tied_instance:
+                                tied_instance.destroy()
 
     global CustomObject
     class CustomObject:
@@ -389,7 +395,7 @@ def register(utils, package):
                     default=False, update=lambda object, context: update_object_property(object, tied_to_property)
                 ))
             if tied_to_object:
-                self.tied_to_object = object.original
+                self.tied_to_object = object
                 CustomObjectInstance(self, object=object)
             self.generate_batch(object)
             self.is_destroyed = False
@@ -490,13 +496,14 @@ def register(utils, package):
                     return rounded_offset
 
                 for instance in self.instances:
-                    offset = 0
-                    for uniform in self.__instance_uniforms:
-                        offset = pad_buf(offset, uniform["alignment"])
-                        encoded = uniform["encode"](self.__get_uniform_value(uniform, instance, states, geometry_type))
-                        buf += encoded
-                        offset += len(encoded)
-                    offset = pad_buf(offset, GLSL_ARRAY_STRUCT_ALIGNMENT)
+                    if instance.visible:
+                        offset = 0
+                        for uniform in self.__instance_uniforms:
+                            offset = pad_buf(offset, uniform["alignment"])
+                            encoded = uniform["encode"](self.__get_uniform_value(uniform, instance, states, geometry_type))
+                            buf += encoded
+                            offset += len(encoded)
+                        offset = pad_buf(offset, GLSL_ARRAY_STRUCT_ALIGNMENT)
 
                 self.__instance_buf = gpu.types.GPUUniformBuf(buf) #this python data must stay in memory until batch gets drawn
                 self.__shader.uniform_block("instance_uniforms", self.__instance_buf)
@@ -518,11 +525,13 @@ def register(utils, package):
                 self.destroy()
                 return
             
+            instance_count = 0
             for instance in self.instances:
                 if instance.object and (not utils.object_exists(instance.object)):
                     instance.destroy()
+                elif instance.visible:
+                    instance_count += 1
 
-            instance_count = len(self.instances)
             if instance_count > 0:
                 for geometry_type, batch in self.__batches.items():
                     gpu_states = self.__gpu_states

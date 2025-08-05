@@ -29,5 +29,9 @@ def register(utils, package):
         layout.operator("view3d.upload_assets", text="Upload Assets")
     return {
         "classes": (VIEW3D_OT_UPLOAD_ASSETS,),
-        "draw": (draw, 2),
+        "draw": {
+            "function": draw, 
+            "assign_to": "syncing_panel",
+            "priority": 2
+        },
     }
