@@ -1,4 +1,4 @@
-import bpy, gpu, mathutils, struct, sys, math
+import bpy, gpu, mathutils, struct, sys, math, time
 from gpu_extras.batch import batch_for_shader
 
 def register(utils, package):
@@ -14,10 +14,12 @@ def register(utils, package):
         "uv": {
             "type": "VEC2",
             "interface": "uvInterp",
+            "define": "USE_UV",
         },
         "color": {
             "type": "VEC3",
             "interface": "colorInterp",
+            "define": "USE_COLOR",
         }
     }
 
@@ -130,6 +132,19 @@ def register(utils, package):
             "type": "VEC3",
             "value": lambda object, states, geometry_type: states["sun_color"]
         },
+        "scale": {
+            "type": "FLOAT",
+            "value": lambda object, states, geometry_type: states["scale"]
+        },
+        "exponent": {
+            "type": "FLOAT",
+            "value": lambda object, states, geometry_type: states["exponent"]
+        },
+        "scroll_uvs": {
+            "type": "VEC2",
+            "value": lambda object, states, geometry_type: mathutils.Vector((0, (-object.tied_to_object_material.scroll_speed * time.time()) % 1))
+        },
+
         "model_view_matrix": {
             "type": "MAT4",
             "instance": True,
@@ -139,7 +154,7 @@ def register(utils, package):
             "type": "MAT3",
             "instance": True,
             "value": lambda instance, states, geometry_type: instance.matrix.to_3x3().inverted().transposed()
-        }
+        },
     }
 
     global create_shader
@@ -151,7 +166,8 @@ def register(utils, package):
         texture_slots=("image",), 
         uniforms=("normal_matrix",), 
         interfaces=None, 
-        define=None
+        define=None,
+        offset_depth=False,
     ):
         shader_info = gpu.types.GPUShaderCreateInfo()
 
@@ -202,8 +218,9 @@ def register(utils, package):
             shader_info.define("USE_TEXTURE")
         if not "pos" in attribs:
             attribs = attribs + ("pos",)
-        if "color" in attribs:
-            shader_info.define("USE_COLOR")
+        if offset_depth:
+            shader_info.define("OFFSET_DEPTH")
+            shader_info.depth_write("LESS")
         if define:
             for variable, value in define.items():
                 shader_info.define(variable, value)
@@ -216,6 +233,8 @@ def register(utils, package):
             shader_info.vertex_in(index, attrib_type, attrib)
             if "interface" in attrib_info:
                 vert_out.smooth(attrib_type, attrib_info["interface"])
+            if "define" in attrib_info:
+                shader_info.define(attrib_info["define"])
             index += 1
         if interfaces:
             for interface_name, interface_info in interfaces.items():
@@ -225,7 +244,6 @@ def register(utils, package):
         
         shader_info.vertex_source(vertex)
         shader_info.fragment_source(fragment)
-        shader_info.depth_write("LESS")
         
         shader = gpu.shader.create_from_info(shader_info)
         shader.bind()
@@ -243,17 +261,24 @@ def register(utils, package):
     DEFAULT_SHADERS = {}
     DEFAULT_VERT = shaders_path.joinpath("default_vert.glsl").read_text()
     DEFAULT_FRAG = shaders_path.joinpath("default_frag.glsl").read_text()
-    def get_default_shader(use_texture, use_color):
-        default_shader_config = (use_texture, use_color)
+    def get_default_shader(use_texture, use_color, use_scroll_texture):
+        default_shader_config = (use_texture, use_color, use_scroll_texture)
         if default_shader_config in DEFAULT_SHADERS:
             shader = DEFAULT_SHADERS[default_shader_config]
         else:
+            attribs = ("normal",)
+            if use_texture:
+                attribs += ("uv",)
+            if use_color:
+                attribs += ("color",)
+
             shader = create_shader(
                 vertex=DEFAULT_VERT,
                 fragment=DEFAULT_FRAG,
-                attribs=("normal", "uv") + (("color",) if use_color else ()),
+                attribs=attribs,
                 use_texture=use_texture,
-                uniforms=("normal_matrix", "sun_dir", "world_color", "sun_color")
+                uniforms=("normal_matrix", "sun_dir", "world_color", "sun_color", "scale", "exponent") + (("scroll_uvs",) if use_scroll_texture else ()),
+                offset_depth=True,
             )
             DEFAULT_SHADERS[default_shader_config] = shader
         return shader
@@ -322,7 +347,8 @@ def register(utils, package):
         def destroy(self):
             if self.object and (not self.custom_object.tied_to_object_material):
                 set_visibility(self.object, True)
-            self.custom_object.instances.remove(self)
+            if self in self.custom_object.instances:
+                self.custom_object.instances.remove(self)
 
     tied_to_properties = {}
     def update_object_property(object, tied_to_property):
@@ -372,7 +398,8 @@ def register(utils, package):
             if not shader:
                 shader = get_default_shader(
                     use_texture=(image != None),
-                    use_color=use_color
+                    use_color=use_color,
+                    use_scroll_texture=tied_to_object_material and tied_to_object_material.use_scroll_texture
                 )
 
             self.__shader = shader["shader"]
@@ -437,28 +464,33 @@ def register(utils, package):
             }
             indices = []
 
+            use_uvs = "uv" in self.__vertex_attribs
+            use_colors = "color" in self.__vertex_attribs
+
             vertices = mesh.vertices
             loops = mesh.loops
             loop_uvs = mesh.uv_layers.active and mesh.uv_layers.active.uv
             loop_colors = mesh.color_attributes.active_color and mesh.color_attributes.active_color.data
             
             index = 0
-            def process_loop(loop, offset_normal=None):
+            def process_loop(loop):
                 nonlocal index
                 loop_index = index
                 index += 1
 
-                pos = vertices[loop.vertex_index].co.copy()
-                normal = loop.normal.copy()
-                if offset_normal:
-                    pos += normal * offset_normal
-                pos_attribs.append(pos)
-                normal_attribs.append(normal)
-                if loop_uvs:
-                    uv_attribs.append(loop_uvs[loop.index].vector.copy())
-                if loop_colors:
-                    color = loop_colors[loop.index].color_srgb
-                    color_attribs.append(mathutils.Vector((color[0], color[1], color[2])))
+                pos_attribs.append(vertices[loop.vertex_index].co.copy())
+                normal_attribs.append(loop.normal.copy())
+                if use_uvs:
+                    if loop_uvs:
+                        uv_attribs.append(loop_uvs[loop.index].vector.copy())
+                    else:
+                        uv_attribs.append(mathutils.Vector((0, 0)))
+                if use_colors:
+                    if loop_colors:
+                        color = loop_colors[loop.index].color_srgb
+                        color_attribs.append(mathutils.Vector((color[0], color[1], color[2])))
+                    else:
+                        color_attribs.append(mathutils.Vector((1, 1, 1)))
                 return loop_index
 
             if self.tied_to_object_material:
@@ -467,7 +499,7 @@ def register(utils, package):
                     if loop_triangle.material_index == material_index:
                         triangle_indices = ()
                         for loop_index in loop_triangle.loops:
-                            triangle_indices += (process_loop(loops[loop_index], 0),)
+                            triangle_indices += (process_loop(loops[loop_index]),)
                         indices.append(triangle_indices)
             else:
                 for loop in loops:
@@ -581,12 +613,16 @@ def register(utils, package):
                         batch.draw_instanced(self.__shader, instance_start=0, instance_count=instance_count)
         
         def destroy(self):
+            print("destroy!!!")
             for instance in self.instances:
                 instance.destroy()
             if self.tied_to_property:
-                tied_to_properties[self.tied_to_property].remove(self)
+                tied_to_property_objects = tied_to_properties[self.tied_to_property]
+                if self in tied_to_property_objects:
+                    tied_to_property_objects.remove(self)
             self.is_destroyed = True
-            custom_objects.remove(self)
+            if self in custom_objects:
+                custom_objects.remove(self)
 
     def draw_callback_3d(delta_time):
         states = {}
@@ -594,6 +630,12 @@ def register(utils, package):
         states["view_dir"] = get_view_dir()
         states["viewport"] = gpu.state.viewport_get()
         states["view_projection_matrix"] = bpy.context.region_data.perspective_matrix
+
+        color_managed_view_settings = bpy.context.scene.view_settings
+        exposure = color_managed_view_settings.exposure
+        gamma = color_managed_view_settings.gamma
+        states["scale"] = 1 if exposure == 0 else pow(2, exposure)
+        states["exponent"] = 1 if gamma == 1 else 1 / max(1.192092896e-07, gamma)
 
         with utils.gpu_state({
             "blend_set": "ALPHA",

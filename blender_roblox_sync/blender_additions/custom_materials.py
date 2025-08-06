@@ -263,20 +263,18 @@ def register(utils, package):
             else:
                 super().draw(context)
 
-    def update_use_custom_material(self, _=None):
-        if self.use_custom_material:
-            init_custom_material(self)
-        else:
-            disable_custom_material(self)
-
     objects_assigned_materials = utils.id_dict()
     materials_assignee_objects = utils.id_dict()
     scroll_materials = utils.id_dict()
-    def update_scroll_material_objects(material, object, is_deleting):
+    def update_scroll_material_objects(material, object, is_deleting=False):
+        if not is_deleting:
+            is_deleting = not (material.use_custom_material and material.use_scroll_texture)
         if is_deleting:
             if material in scroll_materials:
+                print("MOOOO")
                 scroll_material = scroll_materials[material]
                 if object in scroll_material:
+                    print("HUH")
                     scroll_material[object].destroy()
                     del scroll_material[object]
                 if len(scroll_material) == 0:
@@ -296,17 +294,23 @@ def register(utils, package):
                 scroll_object = custom_objects.CustomObject(
                     object=object.original, 
                     image=image_node.image,
+                    use_color=True,
                     draw_geometry=("faces",),
                     tied_to_object=True,
                     tied_to_object_material=material
                 )
                 scroll_material[object] = scroll_object
 
-    def update_scroll_material(material, _=None):
+    def update_use_custom_material(material, _=None):
         if material in materials_assignee_objects:
             for object in materials_assignee_objects[material]:
-                update_scroll_material_objects(material, object, not material.use_scroll_texture)
-        update_use_custom_material(material)
+                update_scroll_material_objects(material, object)
+
+        if material.use_custom_material:
+            init_custom_material(material)
+        else:
+            disable_custom_material(material)
+
     def update_transparency(material, _=None):
         if material.use_custom_material and (not (material.use_scroll_texture or material.use_image_transparency)):
             nodes = material.node_tree.nodes
@@ -327,7 +331,7 @@ def register(utils, package):
     bpy.types.Material.use_custom_material = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
     bpy.types.Material.use_image_transparency = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
     bpy.types.Material.alpha = bpy.props.FloatProperty(default=1, min=0, max=1, update=update_transparency)
-    bpy.types.Material.use_scroll_texture = bpy.props.BoolProperty(default=False, update=update_scroll_material)
+    bpy.types.Material.use_scroll_texture = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
     bpy.types.Material.scroll_speed = bpy.props.FloatProperty(default=1, min=-10, max=10, update=update_use_custom_material)
     
     def update_object_material(object, is_visible=True):
@@ -346,20 +350,21 @@ def register(utils, package):
                 existing_materials.add(assigned_material)
 
             for material in (existing_materials - new_materials):
+                print(object, material)
                 update_scroll_material_objects(material, object, True)
                 assignee_objects = materials_assignee_objects[material]
-                assignee_objects.remove(object)
-                assigned_materials.remove(material)
-                if len(assignee_objects) == 0:
-                    del materials_assignee_objects[material]
+                if assignee_objects:
+                    assignee_objects.remove(object)
+                    assigned_materials.remove(material)
+                    if len(assignee_objects) == 0:
+                        del materials_assignee_objects[material]
 
         if is_visible:
             if assigned_materials == None:
                 assigned_materials = utils.id_list()
                 objects_assigned_materials[object] = assigned_materials
             for material in (new_materials - existing_materials):
-                if material.use_scroll_texture:
-                    update_scroll_material_objects(material, object, False)
+                update_scroll_material_objects(material, object)
                 assignee_objects = materials_assignee_objects[material] if material in materials_assignee_objects else utils.id_list()
                 materials_assignee_objects[material] = assignee_objects
                 assignee_objects.append(object)
@@ -373,6 +378,7 @@ def register(utils, package):
             if (type(id) is bpy.types.Object):
                 update_object_material(id)
     def object_visibility_change(object, is_visible, object_exists):
+        print(object, is_visible)
         update_object_material(object, is_visible)
     return {
         "classes": (EEVEE_MATERIAL_PT_surface,),

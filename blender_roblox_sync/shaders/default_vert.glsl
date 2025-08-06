@@ -1,6 +1,8 @@
 void main()
 {
+	#ifdef USE_UV
 	uvInterp = uv;
+	#endif
 	#ifdef USE_COLOR
 	colorInterp = color;
 	#endif

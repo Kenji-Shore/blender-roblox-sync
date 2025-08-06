@@ -28,13 +28,25 @@ float3 srgb_to_linear_rgb(float3 color)
       srgb_to_linear_rgb(color.r), srgb_to_linear_rgb(color.g), srgb_to_linear_rgb(color.b));
 }
 
+float4 OCIO_ProcessColor(float4 col)
+{
+  col.xyz = linear_rgb_to_srgb(col.xyz * scale);
+  col.rgb = pow(col.rgb, float3(exponent));
+
+  return col;
+}
+
 void main()
 {
 	float a = max(-dot(normalize(normalInterp), sun_dir), 0.0f);
 	fragColor = vec4(world_color + sun_color * a, 1.0f);
 
 	#ifdef USE_TEXTURE
-	vec4 texColor = texture(image, uvInterp);
+  vec2 uv = uvInterp;
+  #ifdef scroll_uvs
+  uv += scroll_uvs;
+  #endif
+	vec4 texColor = texture(image, uv);
 	fragColor *= vec4(srgb_to_linear_rgb(texColor.xyz), texColor.w);
 	#endif
 
@@ -42,6 +54,9 @@ void main()
 	fragColor.xyz *= srgb_to_linear_rgb(colorInterp);
 	#endif
 
-	fragColor.xyz = linear_rgb_to_srgb(fragColor.xyz);
-  gl_FragDepth = gl_FragCoord.z - 0.0001f;
+  #ifdef OFFSET_DEPTH
+  gl_FragDepth = gl_FragCoord.z - 0.00001f;
+  #endif
+
+	fragColor = OCIO_ProcessColor(fragColor);
 }

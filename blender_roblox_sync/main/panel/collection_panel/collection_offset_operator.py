@@ -7,7 +7,10 @@ def register(utils, package):
     GRID_FRAG = shaders_path.joinpath("uniform_color_frag.glsl").read_text()
 
     def get_color(instance, states, geometry_type):
-        return instance.color
+        color = instance.color.copy()
+        if geometry_type == "edges":
+            color.v *= 0.5
+        return (color.r, color.g, color.b) + ((1 if geometry_type == "edges" else 0.5),)
     GRID = custom_objects.create_shader(
         vertex=GRID_VERT,
         fragment=GRID_FRAG,
@@ -29,19 +32,33 @@ def register(utils, package):
     for axis in AXES.keys():
         setattr(bpy.types.Collection, axis, bpy.props.FloatProperty(default=0, update=update_axis))
 
+    gizmo_running = False
+    def gizmo_cleanup():
+        print("cleanup")
+        for grid_info in GRIDS.values():
+            grid_instance = grid_info["grid_instance"]
+            grid_instance.visible = False
+
     class CollectionOffset(bpy.types.GizmoGroup):
         bl_idname = "OBJECT_GGT_collection_offset"
         bl_label = "Collection Offset Widget"
         bl_space_type = "VIEW_3D"
         bl_region_type = "WINDOW"
         bl_options = {"3D", "PERSISTENT", "SCALE"}
-        is_inner = False
 
         @classmethod
         def poll(cls, context):
-            return context.scene.editing_collection != None
+            nonlocal gizmo_running
+            can_run = context.scene.editing_collection != None
+            if gizmo_running and (not can_run):
+                gizmo_running = False
+                gizmo_cleanup()
+            return can_run
 
         def setup(self, context):
+            nonlocal gizmo_running
+            gizmo_running = True
+            print("target", context.scene.editing_collection)
             self.target = context.scene.editing_collection
             self.arrows = {}
 
@@ -50,33 +67,25 @@ def register(utils, package):
                 arrow = self.gizmos.new("GIZMO_GT_arrow_3d")
                 orientation, mask, color = info
                 offset = instance_offset.copy()
-                if self.is_inner:
-                    arrow.target_set_prop("offset", self.target, axis)
-                    offset *= mask
+                arrow.target_set_prop("offset", self.target, axis)
+                offset *= mask
+
                 arrow.line_width = 6
                 arrow.scale_basis = 1.5
                 arrow.matrix_basis = mathutils.Matrix.LocRotScale(offset, orientation, None)
                 arrow.draw_style = "NORMAL"
 
                 new_color = color.copy()
-                if self.is_inner:
-                    new_color.s = 1
-                    new_color.v = 0.4
-                    arrow.alpha = 0.2
-                else:
-                    new_color.s = 0.8
-                    new_color.v = 1
-                    arrow.alpha = 1
+                new_color.s = 0.8
+                new_color.v = 1
+                arrow.alpha = 1
                 arrow.color = (new_color.r, new_color.g, new_color.b)
 
-                if self.is_inner:
-                    highlight_color = color.copy()
-                    highlight_color.s = 0.3
-                    highlight_color.v = 1
-                    arrow.color_highlight = (highlight_color.r, highlight_color.g, highlight_color.b)
-                    arrow.alpha_highlight = 0.4
-                else:
-                    arrow.select_bias = -math.inf
+                highlight_color = color.copy()
+                highlight_color.s = 0.6
+                highlight_color.v = 1
+                arrow.color_highlight = (highlight_color.r, highlight_color.g, highlight_color.b)
+
                 self.arrows[axis] = arrow
 
         def refresh(self, context):
@@ -89,31 +98,23 @@ def register(utils, package):
             for axis, arrow in self.arrows.items():
                 orientation, mask, _ = AXES[axis]
                 offset = instance_offset.copy()
-                if self.is_inner:
-                    arrow.target_set_prop("offset", self.target, axis)
-                    offset *= mask
+                arrow.target_set_prop("offset", self.target, axis)
+                offset *= mask
                 arrow.matrix_basis = mathutils.Matrix.LocRotScale(offset, orientation, None)
-    
-    # class WidgetGroup(bpy.types.GizmoGroup, TestClass):
-    #     bl_idname = "meowmeow"
-    #     is_inner = True
-    # class WidgetGroup2(bpy.types.GizmoGroup, TestClass):
-    #     bl_idname = "meowmeow2"
-    #     bl_options = TestClass.bl_options | {"DEPTH_3D"}
 
-    GRID_SCALE = mathutils.Vector((0.5, 0.5, 0.5))
+    GRID_SCALE = mathutils.Vector((0.8, 0.8, 0.8))
     GRIDS = {
         "xy": {
             "rot": mathutils.Euler((0, 0.5 * math.pi, 0)).to_quaternion(),
-            "color": (0.9, 0.3, 0.3, 1),
+            "color": mathutils.Color((1, 0, 0)),
         },
         "xz": {
             "rot": mathutils.Euler((0.5 * math.pi, 0, 0)).to_quaternion(),
-            "color": (0.3, 0.9, 0.3, 1),
+            "color": mathutils.Color((0, 1, 0)),
         },
         "yz": {
             "rot": mathutils.Euler((0, 0, 0)).to_quaternion(),
-            "color": (0.3, 0.3, 0.9, 1),
+            "color": mathutils.Color((0, 0, 1)),
         }
     }
     def post_registration_loaded():
@@ -122,7 +123,8 @@ def register(utils, package):
             grid = custom_objects.CustomObject(
                 object=resources["objects"]["Grid"], 
                 shader=GRID,
-                draw_order=-10,
+                draw_geometry=("faces", "edges"),
+                draw_order=-6,
             )
         
         for grid_info in GRIDS.values():
@@ -135,7 +137,7 @@ def register(utils, package):
             grid_info["grid_instance"] = grid_instance
 
     def draw(layout, context, editing_collection):
-        layout.label(text="Currently Syncing:")
+        layout.label(text="Meow mix:")
     
     return {
         "classes": (CollectionOffset,),
