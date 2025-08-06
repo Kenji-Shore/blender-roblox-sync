@@ -9,7 +9,7 @@ maintainer = "Kenji Shore"
 type = "add-on"
 
 tags = ["Animation", "Sequencer"]
-blender_version_min = "4.2.0"
+blender_version_min = "4.5.1"
 license = [
   "SPDX:GPL-2.0-or-later",
 ]

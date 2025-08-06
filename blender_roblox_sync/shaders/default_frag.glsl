@@ -43,4 +43,5 @@ void main()
 	#endif
 
 	fragColor.xyz = linear_rgb_to_srgb(fragColor.xyz);
+  gl_FragDepth = gl_FragCoord.z - 0.0001f;
 }

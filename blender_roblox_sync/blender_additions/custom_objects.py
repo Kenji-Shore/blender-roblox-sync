@@ -225,6 +225,7 @@ def register(utils, package):
         
         shader_info.vertex_source(vertex)
         shader_info.fragment_source(fragment)
+        shader_info.depth_write("LESS")
         
         shader = gpu.shader.create_from_info(shader_info)
         shader.bind()
@@ -466,7 +467,7 @@ def register(utils, package):
                     if loop_triangle.material_index == material_index:
                         triangle_indices = ()
                         for loop_index in loop_triangle.loops:
-                            triangle_indices += (process_loop(loops[loop_index], 0.05),)
+                            triangle_indices += (process_loop(loops[loop_index], 0),)
                         indices.append(triangle_indices)
             else:
                 for loop in loops:

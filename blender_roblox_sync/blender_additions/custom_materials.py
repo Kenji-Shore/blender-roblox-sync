@@ -294,7 +294,7 @@ def register(utils, package):
                         break
                 
                 scroll_object = custom_objects.CustomObject(
-                    object=object, 
+                    object=object.original, 
                     image=image_node.image,
                     draw_geometry=("faces",),
                     tied_to_object=True,
