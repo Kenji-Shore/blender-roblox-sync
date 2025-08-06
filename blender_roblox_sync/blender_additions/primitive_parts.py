@@ -34,31 +34,28 @@ def register(utils, package):
     bpy.types.Scene.insert_primitive_type = bpy.props.EnumProperty(items=[(key, key, "", PRIMITIVE_TYPES[key]["icon"], PRIMITIVE_TYPES[key]["id"]) for key in PRIMITIVE_TYPES.keys()], default="Block")
 
     def primitive_update_transform(object):
-        try:
-            object.matrix_world
-        except:
-            return
-        with utils.pause_updates():
-            translation, rotation, scale = object.matrix_world.decompose()
-            lock_scale = object.primitive_lock_scale
+        if utils.id_exists(object):
+            with utils.pause_updates():
+                translation, rotation, scale = object.matrix_world.decompose()
+                lock_scale = object.primitive_lock_scale
 
-            new_scale_avg = 0
-            new_scale_count = 0
-            for axis in PRIMITIVE_TYPES[object.primitive_type]["lock_scales"]:
-                new_scale = scale[axis]
-                if new_scale != lock_scale:
-                    new_scale_avg += new_scale
-                    new_scale_count += 1
+                new_scale_avg = 0
+                new_scale_count = 0
+                for axis in PRIMITIVE_TYPES[object.primitive_type]["lock_scales"]:
+                    new_scale = scale[axis]
+                    if new_scale != lock_scale:
+                        new_scale_avg += new_scale
+                        new_scale_count += 1
 
-            if new_scale_count > 0:
-                lock_scale = new_scale_avg / new_scale_count
-                object.primitive_lock_scale = lock_scale
-            for axis in PRIMITIVE_TYPES[object.primitive_type]["lock_scales"]:
-                scale[axis] = lock_scale
-            for axis in (0, 1, 2):
-                scale[axis] = abs(scale[axis])
-            
-            object.matrix_world = mathutils.Matrix.LocRotScale(translation, rotation, scale)
+                if new_scale_count > 0:
+                    lock_scale = new_scale_avg / new_scale_count
+                    object.primitive_lock_scale = lock_scale
+                for axis in PRIMITIVE_TYPES[object.primitive_type]["lock_scales"]:
+                    scale[axis] = lock_scale
+                for axis in (0, 1, 2):
+                    scale[axis] = abs(scale[axis])
+                
+                object.matrix_world = mathutils.Matrix.LocRotScale(translation, rotation, scale)
         
     class VIEW3D_OT_insert_primitive(bpy.types.Operator):
         bl_idname = "view3d.insert_primitive"

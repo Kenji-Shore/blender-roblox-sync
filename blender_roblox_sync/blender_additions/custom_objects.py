@@ -37,7 +37,7 @@ def register(utils, package):
     bpy.types.Object.is_visible = bpy.props.BoolProperty(default=True)
 
     def set_visibility(object, is_visible):
-        if utils.object_exists(object):
+        if utils.id_exists(object):
             if is_visible:
                 for property_name, default_setting in VISIBLE_SETTINGS.items():
                     setattr(object, property_name, getattr(object.visible_settings, property_name))
@@ -270,7 +270,8 @@ def register(utils, package):
             self.__scale_matrix = None
             self.__matrix = None
             if object:
-                set_visibility(object, False)
+                if not self.custom_object.tied_to_object_material:
+                    set_visibility(object, False)
             else:
                 translation, rotation, scale = matrix.decompose()
                 self.scale = scale
@@ -318,7 +319,7 @@ def register(utils, package):
             self.transform = mathutils.Matrix.LocRotScale(translation, None, None)
 
         def destroy(self):
-            if self.object:
+            if self.object and (not self.custom_object.tied_to_object_material):
                 set_visibility(self.object, True)
             self.custom_object.instances.remove(self)
 
@@ -346,7 +347,6 @@ def register(utils, package):
                         if is_visible:
                             if not tied_instance:
                                 CustomObjectInstance(custom_object, object=object)
-                                custom_object
                         else:
                             if tied_instance:
                                 tied_instance.destroy()
@@ -364,6 +364,7 @@ def register(utils, package):
             gpu_states=None, 
 
             tied_to_object=False, 
+            tied_to_object_material=None,
             tied_to_property=None,
             tied_matrix_get=None,
         ):
@@ -385,6 +386,7 @@ def register(utils, package):
 
             self.instances = []
             self.tied_to_object = None
+            self.tied_to_object_material = None
             self.tied_to_property = tied_to_property
             self.tied_matrix_get = tied_matrix_get
             if tied_to_property:
@@ -396,6 +398,7 @@ def register(utils, package):
                 ))
             if tied_to_object:
                 self.tied_to_object = object
+                self.tied_to_object_material = tied_to_object_material
                 CustomObjectInstance(self, object=object)
             self.generate_batch(object)
             self.is_destroyed = False
@@ -414,7 +417,13 @@ def register(utils, package):
             else:
                 self.__texture = None
 
-        def __generate_faces(self, mesh):
+        def __get_tied_material_index(self, object):
+            for material_slot in object.material_slots:
+                material = material_slot.material
+                if material == self.tied_to_object_material:
+                    return material_slot.slot_index
+                
+        def __generate_faces(self, object, mesh):
             pos_attribs = []
             color_attribs = []
             normal_attribs = []
@@ -425,38 +434,68 @@ def register(utils, package):
                 "normal": normal_attribs,
                 "uv": uv_attribs,
             }
+            indices = []
 
             vertices = mesh.vertices
+            loops = mesh.loops
             loop_uvs = mesh.uv_layers.active and mesh.uv_layers.active.uv
             loop_colors = mesh.color_attributes.active_color and mesh.color_attributes.active_color.data
-            for loop in mesh.loops:
-                pos_attribs.append(vertices[loop.vertex_index].co.copy())
-                normal_attribs.append(loop.normal.copy())
+            
+            index = 0
+            def process_loop(loop, offset_normal=None):
+                nonlocal index
+                loop_index = index
+                index += 1
+
+                pos = vertices[loop.vertex_index].co.copy()
+                normal = loop.normal.copy()
+                if offset_normal:
+                    pos += normal * offset_normal
+                pos_attribs.append(pos)
+                normal_attribs.append(normal)
                 if loop_uvs:
                     uv_attribs.append(loop_uvs[loop.index].vector.copy())
                 if loop_colors:
                     color = loop_colors[loop.index].color_srgb
                     color_attribs.append(mathutils.Vector((color[0], color[1], color[2])))
+                return loop_index
+
+            if self.tied_to_object_material:
+                material_index = self.__get_tied_material_index(object)
+                for loop_triangle in mesh.loop_triangles:
+                    if loop_triangle.material_index == material_index:
+                        triangle_indices = ()
+                        for loop_index in loop_triangle.loops:
+                            triangle_indices += (process_loop(loops[loop_index], 0.05),)
+                        indices.append(triangle_indices)
+            else:
+                for loop in loops:
+                    process_loop(loop)
+                for loop_triangle in mesh.loop_triangles:
+                    indices.append(tuple(loop_triangle.loops))
 
             load_attribs = {}
             for attrib in self.__vertex_attribs:
                 if attrib in vertex_attribs:
                     load_attribs[attrib] = vertex_attribs[attrib]
-            indices = []
-            for loop_triangle in mesh.loop_triangles:
-                indices.append(tuple(loop_triangle.loops))
             return batch_for_shader(self.__shader, "TRIS", load_attribs, indices=indices)
         
-        def __generate_edges(self, mesh):
-            load_attribs = {"pos": [v.co.copy() for v in mesh.vertices]}
+        def __generate_edges(self, object, mesh):
+            load_attribs = {}
             indices = []
+
+            vertices = mesh.vertices
+            load_attribs["pos"] = [v.co.copy() for v in vertices]
             for edge in mesh.edges:
                 indices.append(tuple(edge.vertices))
             return batch_for_shader(self.__shader, "LINES", load_attribs, indices=indices)
 
-        def generate_batch(self, object):
+        def generate_batch(self, object, depsgraph=None):
             object.update_from_editmode()
-            if self.tied_to_object:
+            mesh = object.data
+            if depsgraph:
+                mesh = object.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
+            if self.tied_to_object and (not self.tied_to_object_material):
                 set_visibility(self.tied_to_object, False)
 
             generate_geometry = {
@@ -464,10 +503,9 @@ def register(utils, package):
                 "edges": self.__generate_edges
             }
             
-            mesh = object.data
             self.__batches = {}
             for geometry_type in self.draw_geometry:
-                self.__batches[geometry_type] = generate_geometry[geometry_type](mesh)
+                self.__batches[geometry_type] = generate_geometry[geometry_type](object, mesh)
             utils.trigger_redraw()
 
         def new(self, *, matrix=None, transform=mathutils.Matrix(), scale=mathutils.Vector((1, 1, 1))):
@@ -521,13 +559,13 @@ def register(utils, package):
                     self.__shader.uniform_sampler("image", self.__texture)
             
         def render(self, states):
-            if self.tied_to_object and (not utils.object_exists(self.tied_to_object)):
+            if self.tied_to_object and (not utils.id_exists(self.tied_to_object)):
                 self.destroy()
                 return
             
             instance_count = 0
             for instance in self.instances:
-                if instance.object and (not utils.object_exists(instance.object)):
+                if instance.object and (not utils.id_exists(instance.object)):
                     instance.destroy()
                 elif instance.visible:
                     instance_count += 1
@@ -571,7 +609,7 @@ def register(utils, package):
             if (type(id) is bpy.types.Object) and depsgraph_update.is_updated_geometry:
                 for custom_object in custom_objects:
                     if custom_object.tied_to_object == id:
-                        custom_object.generate_batch(id)
+                        custom_object.generate_batch(id, depsgraph)
                     
     def post_registration():
         bpy.types.Object.visible_settings = bpy.props.PointerProperty(type=VisibleSettings)

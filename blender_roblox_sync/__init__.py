@@ -11,7 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import bpy, importlib, pathlib, inspect, uuid, sys, math, re, gpu, time
+import bpy, importlib, pathlib, inspect, uuid, sys, math, re, gpu, time, collections
 from contextlib import contextmanager
 
 LARGE_INT = sys.maxsize
@@ -122,11 +122,6 @@ class Utils:
                 self.__lookup_package[module_path] = module_package
                 modules[module_name] = importlib.import_module(".".join((module_package, module_stem)))
         return modules
-    
-    def listen_operator(self, operator_name, callback):
-        key = uuid.uuid4()
-        self.__listen_operators[key] = {"operator": operator_name, "callback": callback}
-        return key
 
     def listen_mode(self, modes, **kwargs):
         key = uuid.uuid4()
@@ -169,9 +164,7 @@ class Utils:
         return key
 
     def unlisten(self, key):
-        if key in self.__listen_operators:
-            self.__listen_operators.pop(key)
-        elif key in self.__listen_modes:
+        if key in self.__listen_modes:
             self.__listen_modes.pop(key)
         elif key in self.__listen_depsgraph_updates:
             self.__listen_depsgraph_updates.pop(key)
@@ -260,46 +253,68 @@ class Utils:
     def trigger_redraw(self):
         self.__trigger_redraws += 1
     
-    def object_exists(self, object):
+    def id_exists(self, id):
         try:
-            object.matrix_world
+            id.id_type
             return True
         except:
             return False
     
-    def dict_get_id(self, dict, key): #safe dict get when key might be a deleted ID
-        try:
-            key.id_type
-            return dict.get(key)
-        except:
-            for other_key, value in dict.items():
-                if key == other_key:
-                    return value
-                
-    def dict_remove_id(self, dict, key): #safe dict remove when key might be a deleted ID
-        try:
-            del dict[key]
-        except:
-            filtered = {k: v for k, v in dict.items() if k != key}
-            dict.clear()
-            dict.update(filtered)
-
-    def list_has_id(self, list, value): #safe list get when value might be a deleted ID
-        try:
-            value.id_type
-            return value in list
-        except:
-            for other_value in list:
-                if value == other_value:
-                    return True
-        return False
-                
-    def list_remove_id(self, list, value): #safe list remove when value might be a deleted ID
-        try:
-            value.id_type
-            list.remove(value)
-        except:
-            list[:] = [v for v in list if v != value]
+    class IDDict(collections.UserDict):
+        def __getitem__(self, key):
+            try:
+                key.id_type
+                return self.data[key.original]
+            except:
+                for other_key, value in self.data.items():
+                    if key == other_key:
+                        return value
+        def __setitem__(self, key, value):
+            self.data[key.original] = value
+        def __delitem__(self, key):
+            try:
+                del self.data[key.original]
+            except:
+                filtered = {k: v for k, v in self.data.items() if k != key}
+                self.data.clear()
+                self.data.update(filtered)
+        def __contains__(self, key):
+            try:
+                key.id_type
+                return key.original in self.data
+            except:
+                for other_key in self.data.keys():
+                    if key == other_key:
+                        return True
+            return False
+    
+    class IDList(collections.UserList):
+        def __setitem__(self, index, value):
+            self.data[index] = value.original
+        def append(self, value):
+            self.data.append(value.original)
+        def insert(self, index, value):
+            self.data.insert(index, value.original)
+        def remove(self, value):
+            try:
+                value.id_type
+                self.data.remove(value.original)
+            except:
+                self.data[:] = [v for v in self.data if v != value]
+        def __contains__(self, value):
+            try:
+                value.id_type
+                return value.original in self.data
+            except:
+                for other_value in self.data:
+                    if value == other_value:
+                        return True
+            return False
+    
+    def id_dict(self, *args, **kwargs):
+        return self.IDDict(*args, **kwargs)
+    def id_list(self, *args, **kwargs):
+        return self.IDList(*args, **kwargs)
 
     def draw_layout(self, group_name, layout, context, *args):
         if group_name in self.__store_addon_draws:
@@ -339,7 +354,6 @@ class Utils:
         self.__dependency_stack = []
         self.__gpu_states = {}
 
-        self.__listen_operators = {}
         self.__listen_modes = {}
         self.__listen_depsgraph_updates = {}
         self.__listen_object_visibility_changes = {}
@@ -350,12 +364,6 @@ class Utils:
         self.__trigger_redraws = 0
 
         def depsgraph_update_post(scene, depsgraph):
-            active_operator = bpy.context.active_operator
-            if active_operator:
-                operator_name = active_operator.bl_idname
-                for listener in self.__listen_operators.values():
-                    if listener["operator"] == operator_name:
-                        listener["callback"]()
             if self.__depsgraph_paused == 0:
                 for callback in self.__listen_depsgraph_updates.values():
                     callback(depsgraph)
@@ -459,7 +467,7 @@ class Utils:
         for addon_panel in self.__addon_panels:
             bpy.utils.register_class(addon_panel)
         self.prefs = bpy.context.preferences.addons[__package__].preferences
-
+        
         last_time = time.time()
         delta_time = 0
         def draw_pre_view():

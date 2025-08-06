@@ -32,12 +32,12 @@ def register(utils, package):
         interfaces={"color": ("flat", "VEC4")},
     )
 
-    invisible_objects = {}
+    invisible_objects = utils.id_dict()
     def destroy_invisible_object(object):
-        invisible_object = utils.dict_get_id(invisible_objects, object)
-        if invisible_object:
+        if object in invisible_objects:
+            invisible_object = invisible_objects[object]
             invisible_object.destroy()
-            utils.dict_remove_id(invisible_objects, object)
+            del invisible_objects[object]
     def update_is_invisible(object, context):
         destroy_invisible_object(object)
         if object.is_invisible:

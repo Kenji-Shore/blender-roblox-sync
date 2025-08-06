@@ -4,32 +4,9 @@ def register(utils, package):
     multi_vertex_paint = utils.import_module("multi_vertex_paint")
     custom_objects = utils.import_module("custom_objects")
 
-    def get_node_setup(mat):
+    def get_node_setup(material):
         node_properties = {}
-        if mat.use_scroll_texture:
-            node_properties["ShaderNodeUVMap"] = {
-                "properties": {
-                    "location": mathutils.Vector((-310, -100)),
-                    "width": 140,
-                    "height": 100,
-                    "uv_map": "",
-                    "show_options": False,
-                },
-            }
-            node_properties["ShaderNodeMapping"] = {
-                "properties": {
-                    "location": mathutils.Vector((-140, -100)),
-                    "width": 140,
-                    "height": 100,
-                    "vector_type": "POINT",
-                    "show_options": False,
-                },
-                "inputs": {
-                    "Rotation": { "enabled": False, "default_value": mathutils.Vector() },
-                    "Scale": { "enabled": False, "default_value": mathutils.Vector((1, 1, 1)) },
-                },
-            }
-        if not mat.use_image_transparency:
+        if not material.use_image_transparency:
             node_properties["ShaderNodeMix"] = {
                 "properties": {
                     "location": mathutils.Vector((320, -100)),
@@ -64,11 +41,8 @@ def register(utils, package):
                 "width": 240,
                 "height": 100,
             },
-            "inputs": {
-                "Vector": { "enabled": mat.use_scroll_texture }
-            },
             "outputs": {
-                "Alpha": { "enabled": mat.use_image_transparency }
+                "Alpha": { "enabled": material.use_image_transparency }
             }
         }
         node_properties["ShaderNodeBsdfPrincipled"] = {
@@ -83,7 +57,7 @@ def register(utils, package):
                 "Metallic": { "enabled": False, "default_value": 0 },
                 "Roughness": { "enabled": False, "default_value": 1 },
                 "IOR": { "enabled": False, "default_value": 1 },
-                "Alpha": { "enabled": True },
+                "Alpha": { "enabled": True, "default_value": 0 if material.use_scroll_texture else material.alpha },
                 "Normal": { "enabled": False, "default_value": [0, 0, 0] },
                 "Weight": { "enabled": False, "default_value": 0 },
                 "Diffuse Roughness": { "enabled": False, "default_value": 0 },
@@ -135,16 +109,13 @@ def register(utils, package):
         }
 
         node_links = []
-        if mat.use_image_transparency:
+        if material.use_image_transparency:
             node_links.append((("ShaderNodeTexImage", "Color"), ("ShaderNodeBsdfPrincipled", "Base Color")))
             node_links.append((("ShaderNodeTexImage", "Alpha"), ("ShaderNodeBsdfPrincipled", "Alpha")))
         else:
             node_links.append((("ShaderNodeTexImage", "Color"), ("ShaderNodeMix", "A_Color")))
             node_links.append((("ShaderNodeVertexColor", "Color"), ("ShaderNodeMix", "B_Color")))
             node_links.append((("ShaderNodeMix", "Result_Color"), ("ShaderNodeBsdfPrincipled", "Base Color")))
-        if mat.use_scroll_texture:
-            node_links.append((("ShaderNodeUVMap", "UV"), ("ShaderNodeMapping", "Vector")))
-            node_links.append((("ShaderNodeMapping", "Vector"), ("ShaderNodeTexImage", "Vector")))
         node_links.append((("ShaderNodeBsdfPrincipled", "BSDF"), ("ShaderNodeOutputMaterial", "Surface")))
 
         return node_properties, node_links
@@ -155,8 +126,8 @@ def register(utils, package):
                 return socket
             
     custom_frame_name = "CustomMaterialFrame"
-    def get_custom_material_label(mat):
-        return ("Transparent " if mat.use_image_transparency else "") + "Image Material " + ("[Enabled]" if mat.use_custom_material else "[Disabled]")
+    def get_custom_material_label(material):
+        return ("Transparent " if material.use_image_transparency else "") + "Image Material " + ("[Enabled]" if material.use_custom_material else "[Disabled]")
 
     def get_custom_material_frame(nodes):
         frame = nodes.get(custom_frame_name)
@@ -169,12 +140,12 @@ def register(utils, package):
         if frame:
             return node.parent == frame
 
-    def disable_custom_material(mat):
-        if mat.node_tree:
-            nodes = mat.node_tree.nodes
+    def disable_custom_material(material):
+        if material.node_tree:
+            nodes = material.node_tree.nodes
             frame = get_custom_material_frame(nodes)
             if frame:
-                frame.label = get_custom_material_label(mat)
+                frame.label = get_custom_material_label(material)
                 for node in nodes:
                     if node.parent == frame and node.bl_idname == "ShaderNodeOutputMaterial":
                         nodes.remove(node)
@@ -188,10 +159,10 @@ def register(utils, package):
                 node = nodes.new(type="ShaderNodeOutputMaterial")
                 node.location = mathutils.Vector((200, 160))
 
-    def init_custom_material(mat):
-        if mat.node_tree:
-            node_properties, node_links = get_node_setup(mat)
-            nodes = mat.node_tree.nodes
+    def init_custom_material(material):
+        if material.node_tree:
+            node_properties, node_links = get_node_setup(material)
+            nodes = material.node_tree.nodes
             frame = get_custom_material_frame(nodes)
             is_new = False
             if not frame:
@@ -203,7 +174,7 @@ def register(utils, package):
             frame.shrink = True
             frame.color = mathutils.Color((0.35, 0.35, 0.35))
             frame.location = mathutils.Vector((-500, -80))
-            frame.label = get_custom_material_label(mat)
+            frame.label = get_custom_material_label(material)
 
             modify_nodes = {}
             for node in nodes:
@@ -219,7 +190,7 @@ def register(utils, package):
                     node.parent = frame
                     modify_nodes[bl_idname] = node
 
-            links = mat.node_tree.links
+            links = material.node_tree.links
             for link in links:
                 if (link.from_node.parent == frame) or (link.to_node.parent == frame):
                     links.remove(link)
@@ -234,12 +205,6 @@ def register(utils, package):
                         break
                 if image:
                     modify_nodes.get("ShaderNodeTexImage").image = image
-
-            if mat.use_scroll_texture:
-                location_socket = modify_nodes.get("ShaderNodeMapping").inputs.get("Location")
-                driver = location_socket.driver_add("default_value", 1).driver
-                driver.type = "SCRIPTED"
-                driver.expression = f"frame * {-0.05 * mat.scroll_speed}"
 
             for bl_idname, node in modify_nodes.items():
                 properties = node_properties.get(bl_idname)
@@ -265,13 +230,13 @@ def register(utils, package):
     class EEVEE_MATERIAL_PT_surface(bl_ui.properties_material.EEVEE_MATERIAL_PT_surface): #overwrite original panel
         def draw(self, context):
             layout = self.layout
-            mat = context.material
+            material = context.material
 
             box = layout.box()
-            box.prop(mat, "use_custom_material", text="Use Custom Material")
+            box.prop(material, "use_custom_material", text="Use Custom Material")
 
-            if mat.use_custom_material:
-                nodes = mat.node_tree.nodes
+            if material.use_custom_material:
+                nodes = material.node_tree.nodes
                 image_node, bsdf_node = None, None
                 for node in nodes:
                     if is_in_custom_material(nodes, node):
@@ -285,21 +250,16 @@ def register(utils, package):
                     layout.template_icon(image_node.image.preview.icon_id, scale=4)
                 layout.template_ID(image_node, "image", new="image.new", open="image.open")
                 
-                layout.prop(mat, "use_image_transparency", text="Use Image Transparency")
+                layout.prop(material, "use_image_transparency", text="Use Image Transparency")
                 layout.use_property_split = True
-                if not mat.use_image_transparency:
-                    alpha_socket = None
-                    for socket in bsdf_node.inputs:
-                        if socket.identifier == "Alpha":
-                            alpha_socket = socket
-                            break
-                    layout.prop(alpha_socket, "default_value", text="Alpha")
+                if not material.use_image_transparency:
+                    layout.prop(material, "alpha", text="Alpha")
                 
                 layout.use_property_split = False
-                layout.prop(mat, "use_scroll_texture", text="Use Scroll Texture")
+                layout.prop(material, "use_scroll_texture", text="Use Scroll Texture")
                 layout.use_property_split = True
-                if mat.use_scroll_texture:
-                    layout.prop(mat, "scroll_speed", text="Scroll Speed")
+                if material.use_scroll_texture:
+                    layout.prop(material, "scroll_speed", text="Scroll Speed")
             else:
                 super().draw(context)
 
@@ -309,79 +269,115 @@ def register(utils, package):
         else:
             disable_custom_material(self)
 
-    
-    def update_scroll_material(self, _=None):
-        update_use_custom_material(self)
+    objects_assigned_materials = utils.id_dict()
+    materials_assignee_objects = utils.id_dict()
+    scroll_materials = utils.id_dict()
+    def update_scroll_material_objects(material, object, is_deleting):
+        if is_deleting:
+            if material in scroll_materials:
+                scroll_material = scroll_materials[material]
+                if object in scroll_material:
+                    scroll_material[object].destroy()
+                    del scroll_material[object]
+                if len(scroll_material) == 0:
+                    del scroll_materials[material]
+        else:
+            if not (material in scroll_materials):
+                scroll_materials[material] = utils.id_dict()
+            scroll_material = scroll_materials[material]
+            if not (object in scroll_material):
+                nodes = material.node_tree.nodes
+                image_node = None
+                for node in nodes:
+                    if is_in_custom_material(nodes, node) and (type(node) is bpy.types.ShaderNodeTexImage):
+                        image_node = node
+                        break
+                
+                scroll_object = custom_objects.CustomObject(
+                    object=object, 
+                    image=image_node.image,
+                    draw_geometry=("faces",),
+                    tied_to_object=True,
+                    tied_to_object_material=material
+                )
+                scroll_material[object] = scroll_object
+
+    def update_scroll_material(material, _=None):
+        if material in materials_assignee_objects:
+            for object in materials_assignee_objects[material]:
+                update_scroll_material_objects(material, object, not material.use_scroll_texture)
+        update_use_custom_material(material)
+    def update_transparency(material, _=None):
+        if material.use_custom_material and (not (material.use_scroll_texture or material.use_image_transparency)):
+            nodes = material.node_tree.nodes
+            bsdf_node = None
+            for node in nodes:
+                if is_in_custom_material(nodes, node) and (type(node) is bpy.types.ShaderNodeBsdfPrincipled):
+                    bsdf_node = node
+                    break
+            
+            alpha_socket = None
+            for socket in bsdf_node.inputs:
+                if socket.identifier == "Alpha":
+                    alpha_socket = socket
+                    break
+            if alpha_socket:
+                alpha_socket.default_value = material.alpha
+
     bpy.types.Material.use_custom_material = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
     bpy.types.Material.use_image_transparency = bpy.props.BoolProperty(default=False, update=update_use_custom_material)
+    bpy.types.Material.alpha = bpy.props.FloatProperty(default=1, min=0, max=1, update=update_transparency)
     bpy.types.Material.use_scroll_texture = bpy.props.BoolProperty(default=False, update=update_scroll_material)
     bpy.types.Material.scroll_speed = bpy.props.FloatProperty(default=1, min=-10, max=10, update=update_use_custom_material)
-
-    def material_added():
-        if hasattr(bpy.context, "material"):
-            update_use_custom_material(bpy.context.material)
-
-    objects_assigned_materials = {}
-    materials_assignee_objects = {}
-    def load_post(file):
-        bpy.context.scene.frame_start = 1
-        bpy.context.scene.frame_end = 60
-        bpy.ops.screen.animation_play()
-        for mat in bpy.data.materials:
-            update_use_custom_material(mat)
     
     def update_object_material(object, is_visible=True):
         existing_materials = set()
-        assigned_materials = utils.dict_get_id(objects_assigned_materials, object)
-        if assigned_materials != None:
-            for assigned_material in assigned_materials:
-                existing_materials.add(assigned_material)
-
         new_materials = set()
         if is_visible and (object.type == "MESH"):
             for material_slot in object.material_slots:
                 material = material_slot.material
                 if material:
-                    new_materials.add(material)
+                    new_materials.add(material.original)
         
-        assigned_materials = utils.dict_get_id(objects_assigned_materials, object)
-        if assigned_materials != None:
+        assigned_materials = None
+        if object in objects_assigned_materials:
+            assigned_materials = objects_assigned_materials[object]
+            for assigned_material in assigned_materials:
+                existing_materials.add(assigned_material)
+
             for material in (existing_materials - new_materials):
-                assignee_objects = utils.dict_get_id(materials_assignee_objects, material)
-                utils.list_remove_id(assigned_materials, material)
-                utils.list_remove_id(assignee_objects, object)
+                update_scroll_material_objects(material, object, True)
+                assignee_objects = materials_assignee_objects[material]
+                assignee_objects.remove(object)
+                assigned_materials.remove(material)
                 if len(assignee_objects) == 0:
-                    utils.dict_remove_id(materials_assignee_objects, material)
+                    del materials_assignee_objects[material]
 
         if is_visible:
-            if not assigned_materials:
-                assigned_materials = []
+            if assigned_materials == None:
+                assigned_materials = utils.id_list()
                 objects_assigned_materials[object] = assigned_materials
             for material in (new_materials - existing_materials):
-                assignee_objects = materials_assignee_objects[material] if material in materials_assignee_objects else []
+                if material.use_scroll_texture:
+                    update_scroll_material_objects(material, object, False)
+                assignee_objects = materials_assignee_objects[material] if material in materials_assignee_objects else utils.id_list()
                 materials_assignee_objects[material] = assignee_objects
                 assignee_objects.append(object)
                 assigned_materials.append(material)
-
         if (assigned_materials != None) and (len(assigned_materials) == 0):
-            utils.dict_remove_id(objects_assigned_materials, object)
-        
+            del objects_assigned_materials[object]
+
     def depsgraph_update(depsgraph):
         for depsgraph_update in depsgraph.updates:
-            id = depsgraph_update.id.original
-            if (type(id) is bpy.types.Object) and depsgraph_update.is_updated_shading: #.is_updated_geometry: #is_updated_shading
+            id = depsgraph_update.id
+            if (type(id) is bpy.types.Object):
                 update_object_material(id)
-    def material_slot_removed():
-        update_object_material(bpy.context.active_object)
     def object_visibility_change(object, is_visible, object_exists):
         update_object_material(object, is_visible)
     return {
         "classes": (EEVEE_MATERIAL_PT_surface,),
         "listeners": (
-            utils.listen_operator("MATERIAL_OT_new", material_added),
-            utils.listen_operator("OBJECT_OT_material_slot_remove", material_slot_removed),
-            utils.listen_handler("load_post", load_post),
             utils.listen_depsgraph_update(depsgraph_update),
-            utils.listen_object_visibility_change(object_visibility_change)
+            utils.listen_object_visibility_change(object_visibility_change),
         ),
     }
