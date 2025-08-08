@@ -260,6 +260,9 @@ class Utils:
         except:
             return False
     
+    def object_visible(self, object):
+        return object in bpy.context.visible_objects
+    
     class IDDict(collections.UserDict):
         def __getitem__(self, key):
             try:
@@ -385,7 +388,8 @@ class Utils:
                     is_visible = object in new_objects
                     object_exists = object in all_objects
                     if object_exists:
-                        object.matrix_world = object.evaluated_get(depsgraph).matrix_world
+                        object = object.evaluated_get(depsgraph)
+                        # object.matrix_world = object.evaluated_get(depsgraph).matrix_world
                     for callback in self.__listen_object_visibility_changes.values():
                         callback(object, is_visible, object_exists)
 

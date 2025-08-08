@@ -271,10 +271,8 @@ def register(utils, package):
             is_deleting = not (material.use_custom_material and material.use_scroll_texture)
         if is_deleting:
             if material in scroll_materials:
-                print("MOOOO")
                 scroll_material = scroll_materials[material]
                 if object in scroll_material:
-                    print("HUH")
                     scroll_material[object].destroy()
                     del scroll_material[object]
                 if len(scroll_material) == 0:
@@ -350,14 +348,12 @@ def register(utils, package):
                 existing_materials.add(assigned_material)
 
             for material in (existing_materials - new_materials):
-                print(object, material)
                 update_scroll_material_objects(material, object, True)
                 assignee_objects = materials_assignee_objects[material]
-                if assignee_objects:
-                    assignee_objects.remove(object)
-                    assigned_materials.remove(material)
-                    if len(assignee_objects) == 0:
-                        del materials_assignee_objects[material]
+                assignee_objects.remove(object)
+                assigned_materials.remove(material)
+                if len(assignee_objects) == 0:
+                    del materials_assignee_objects[material]
 
         if is_visible:
             if assigned_materials == None:
@@ -374,11 +370,10 @@ def register(utils, package):
 
     def depsgraph_update(depsgraph):
         for depsgraph_update in depsgraph.updates:
-            id = depsgraph_update.id
-            if (type(id) is bpy.types.Object):
+            id = depsgraph_update.id.original
+            if (type(id) is bpy.types.Object) and utils.object_visible(id):
                 update_object_material(id)
     def object_visibility_change(object, is_visible, object_exists):
-        print(object, is_visible)
         update_object_material(object, is_visible)
     return {
         "classes": (EEVEE_MATERIAL_PT_surface,),

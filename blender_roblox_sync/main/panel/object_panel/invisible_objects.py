@@ -67,9 +67,10 @@ def register(utils, package):
         else:
             destroy_invisible_object(object)
     def draw(layout, context, currently_selected):
-        layout.prop(currently_selected, "is_invisible", text="Is Invisible")
-        if currently_selected.is_invisible:
-            layout.prop(currently_selected, "invisible_color", text="Color")
+        if currently_selected:
+            layout.prop(currently_selected, "is_invisible", text="Is Invisible")
+            if currently_selected.is_invisible:
+                layout.prop(currently_selected, "invisible_color", text="Color")
     return {
         "listeners": (utils.listen_object_visibility_change(object_visibility_change),),
         "draw": {

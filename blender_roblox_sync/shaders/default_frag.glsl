@@ -59,4 +59,7 @@ void main()
   #endif
 
 	fragColor = OCIO_ProcessColor(fragColor);
+  #ifdef alpha
+  fragColor.w = alpha;
+  #endif
 }

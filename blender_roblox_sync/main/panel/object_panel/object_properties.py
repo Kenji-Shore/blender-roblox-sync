@@ -5,13 +5,17 @@ def register(utils, package):
     global load_draw
     def load_draw(condition, draw_properties=None):
         loaded_draws.append((condition, draw_properties))
-
+    
+    global currently_selected
+    currently_selected = None
     def draw(layout, context):
-        box = layout.box()
-        col = box.column(align=True)
+        global currently_selected
         currently_selected = context.active_object
         if currently_selected and not currently_selected.select_get():
             currently_selected = None
+        
+        box = layout.box()
+        col = box.column(align=True)
         col.label(text="Selected: " + (currently_selected.name if currently_selected else "None"))
         
         if currently_selected:
@@ -24,6 +28,8 @@ def register(utils, package):
                         draw_properties(flow, context, currently_selected)
                     return
             utils.draw_layout("object_properties", flow, context, currently_selected)
+        else:
+            utils.draw_layout("object_properties", None, context, None)
     return {
         "draw": {
             "function": draw, 

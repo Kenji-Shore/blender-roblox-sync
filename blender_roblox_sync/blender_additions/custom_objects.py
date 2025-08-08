@@ -144,6 +144,10 @@ def register(utils, package):
             "type": "VEC2",
             "value": lambda object, states, geometry_type: mathutils.Vector((0, (-object.tied_to_object_material.scroll_speed * time.time()) % 1))
         },
+        "alpha": {
+            "type": "FLOAT",
+            "value": lambda object, states, geometry_type: object.alpha
+        },
 
         "model_view_matrix": {
             "type": "MAT4",
@@ -277,7 +281,7 @@ def register(utils, package):
                 fragment=DEFAULT_FRAG,
                 attribs=attribs,
                 use_texture=use_texture,
-                uniforms=("normal_matrix", "sun_dir", "world_color", "sun_color", "scale", "exponent") + (("scroll_uvs",) if use_scroll_texture else ()),
+                uniforms=("normal_matrix", "sun_dir", "world_color", "sun_color", "scale", "exponent", "alpha") + (("scroll_uvs",) if use_scroll_texture else ()),
                 offset_depth=True,
             )
             DEFAULT_SHADERS[default_shader_config] = shader
@@ -287,7 +291,7 @@ def register(utils, package):
     class CustomObjectInstance:
         def __init__(self, custom_object, matrix=None, object=None):
             self.custom_object = custom_object
-            self.object = object
+            self.object = object.original if object else None
             self.visible = True
             custom_object.instances.append(self)
 
@@ -295,9 +299,9 @@ def register(utils, package):
             self.__scale = None
             self.__scale_matrix = None
             self.__matrix = None
-            if object:
+            if self.object:
                 if not self.custom_object.tied_to_object_material:
-                    set_visibility(object, False)
+                    set_visibility(self.object, False)
             else:
                 translation, rotation, scale = matrix.decompose()
                 self.scale = scale
@@ -357,8 +361,8 @@ def register(utils, package):
                 CustomObjectInstance(custom_object, object=object)
         else:
             for custom_object in tied_to_properties[tied_to_property]:
-                for instance in custom_object.instances:
-                    if instance.object == object:
+                for instance in custom_object.instances.copy():
+                    if instance.object == object.original:
                         instance.destroy()
     
     def object_visibility_change(object, is_visible, object_exists):
@@ -368,7 +372,7 @@ def register(utils, package):
                     for custom_object in tied_custom_objects:
                         tied_instance = None
                         for instance in custom_object.instances:
-                            if instance.object == object:
+                            if instance.object == object.original:
                                 tied_instance = instance
                                 break
                         if is_visible:
@@ -424,8 +428,10 @@ def register(utils, package):
                 setattr(bpy.types.Object, tied_to_property, bpy.props.BoolProperty(
                     default=False, update=lambda object, context: update_object_property(object, tied_to_property)
                 ))
+            
+            self.alpha = 1
             if tied_to_object:
-                self.tied_to_object = object
+                self.tied_to_object = object.original
                 self.tied_to_object_material = tied_to_object_material
                 CustomObjectInstance(self, object=object)
             self.generate_batch(object)
@@ -592,29 +598,34 @@ def register(utils, package):
                     self.__shader.uniform_sampler("image", self.__texture)
             
         def render(self, states):
-            if self.tied_to_object and (not utils.id_exists(self.tied_to_object)):
+            if (self.tied_to_object and (not utils.id_exists(self.tied_to_object))) or (self.tied_to_object_material and (not utils.id_exists(self.tied_to_object_material))):
                 self.destroy()
                 return
             
             instance_count = 0
-            for instance in self.instances:
+            for instance in self.instances.copy():
                 if instance.object and (not utils.id_exists(instance.object)):
                     instance.destroy()
                 elif instance.visible:
                     instance_count += 1
 
+            if self.tied_to_object_material:
+                self.alpha = self.tied_to_object_material.alpha
             if instance_count > 0:
                 for geometry_type, batch in self.__batches.items():
                     gpu_states = self.__gpu_states
                     if gpu_states and (geometry_type in gpu_states):
                         gpu_states = gpu_states[geometry_type]
                     self.__prep_render(states, geometry_type)
+                    if self.tied_to_object_material and self.tied_to_object.mode == "EDIT":
+                        gpu_states = gpu_states.copy() if gpu_states != None else {}
+                        gpu_states["blend_set"] = "ADDITIVE"
+
                     with utils.gpu_state(gpu_states):
                         batch.draw_instanced(self.__shader, instance_start=0, instance_count=instance_count)
         
         def destroy(self):
-            print("destroy!!!")
-            for instance in self.instances:
+            for instance in self.instances.copy():
                 instance.destroy()
             if self.tied_to_property:
                 tied_to_property_objects = tied_to_properties[self.tied_to_property]
@@ -643,7 +654,7 @@ def register(utils, package):
             "depth_test_set": "LESS_EQUAL"
         }):
             custom_objects.sort(key = lambda custom_object: custom_object.draw_order)
-            for custom_object in custom_objects:
+            for custom_object in custom_objects.copy():
                 custom_object.render(states)
 
     def depsgraph_update(depsgraph):
@@ -653,7 +664,7 @@ def register(utils, package):
                 for custom_object in custom_objects:
                     if custom_object.tied_to_object == id:
                         custom_object.generate_batch(id, depsgraph)
-                    
+     
     def post_registration():
         bpy.types.Object.visible_settings = bpy.props.PointerProperty(type=VisibleSettings)
     return {

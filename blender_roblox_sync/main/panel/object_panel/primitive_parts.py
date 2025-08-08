@@ -114,11 +114,12 @@ def register(utils, package):
     # split.operator("view3d.insert_primitive", text="Insert")
 
     def draw(layout, context, currently_selected):
-        if currently_selected.is_primitive:
-            layout.prop(currently_selected, "is_primitive", text="Is Primitive")
-            # split = layout.split(factor=0.5)
-            # split.label(text="Primitive Type: ")
-            layout.prop(currently_selected, "primitive_type", text="Shape")
+        if currently_selected:
+            if currently_selected.is_primitive:
+                layout.prop(currently_selected, "is_primitive", text="Is Primitive")
+                # split = layout.split(factor=0.5)
+                # split.label(text="Primitive Type: ")
+                layout.prop(currently_selected, "primitive_type", text="Shape")
     return {
         "classes": (VIEW3D_OT_insert_primitive,),
         "listeners": (
