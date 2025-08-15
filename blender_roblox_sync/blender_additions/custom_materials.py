@@ -290,7 +290,7 @@ def register(utils, package):
                         break
                 
                 scroll_object = custom_objects.CustomObject(
-                    object=object.original, 
+                    object=object, 
                     image=image_node.image,
                     use_color=True,
                     draw_geometry=("faces",),
@@ -335,8 +335,8 @@ def register(utils, package):
     def update_object_material(object, is_visible=True):
         existing_materials = set()
         new_materials = set()
-        if is_visible and (object.type == "MESH"):
-            for material_slot in object.material_slots:
+        if is_visible and (object.original.type == "MESH"):
+            for material_slot in object.original.material_slots:
                 material = material_slot.material
                 if material:
                     new_materials.add(material.original)
@@ -370,7 +370,7 @@ def register(utils, package):
 
     def depsgraph_update(depsgraph):
         for depsgraph_update in depsgraph.updates:
-            id = depsgraph_update.id.original
+            id = depsgraph_update.id
             if (type(id) is bpy.types.Object) and utils.object_visible(id):
                 update_object_material(id)
     def object_visibility_change(object, is_visible, object_exists):

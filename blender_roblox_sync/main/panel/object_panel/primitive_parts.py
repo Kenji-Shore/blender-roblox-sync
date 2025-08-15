@@ -56,30 +56,31 @@ def register(utils, package):
                     scale[axis] = abs(scale[axis])
                 
                 object.matrix_world = mathutils.Matrix.LocRotScale(translation, rotation, scale)
-        
+    
+    global insert_primitive
+    def insert_primitive(primitive_type):
+        bpy.ops.object.add(type="MESH")
+        object = bpy.context.active_object
+        object.is_primitive = True
+        object.primitive_type = primitive_type
+        object.name = primitive_type
+
+        scale = object.scale
+        lock_scale = 0
+        primitive_info = PRIMITIVE_TYPES[primitive_type]
+        for axis in primitive_info["lock_scales"]:
+            lock_scale = max(lock_scale, scale[axis])
+        object.primitive_lock_scale = lock_scale
+        primitive_update_transform(object)
+        return object
+
     class VIEW3D_OT_insert_primitive(bpy.types.Operator):
         bl_idname = "view3d.insert_primitive"
         bl_label = "Insert Primitive"
         bl_options = {"REGISTER", "UNDO"}
 
         def execute(self, context):
-            primitive_type = context.scene.insert_primitive_type
-            primitive_info = PRIMITIVE_TYPES[primitive_type]
-
-            bpy.ops.object.add(type="MESH")
-            object = context.active_object
-            object.is_primitive = True
-            object.primitive_type = primitive_type
-            object.name = primitive_type
-
-            scale = object.scale
-            lock_scale = 0
-            for axis in primitive_info["lock_scales"]:
-                lock_scale = max(lock_scale, scale[axis])
-            object.primitive_lock_scale = lock_scale
-            primitive_update_transform(object)
-
-            print("inserting", object)
+            insert_primitive(context.scene.insert_primitive_type)
             return {"FINISHED"}
 
     def primitive_part_updated(depsgraph):
@@ -117,8 +118,6 @@ def register(utils, package):
         if currently_selected:
             if currently_selected.is_primitive:
                 layout.prop(currently_selected, "is_primitive", text="Is Primitive")
-                # split = layout.split(factor=0.5)
-                # split.label(text="Primitive Type: ")
                 layout.prop(currently_selected, "primitive_type", text="Shape")
     return {
         "classes": (VIEW3D_OT_insert_primitive,),

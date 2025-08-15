@@ -261,7 +261,7 @@ class Utils:
             return False
     
     def object_visible(self, object):
-        return object in bpy.context.visible_objects
+        return object.original in bpy.context.visible_objects
     
     class IDDict(collections.UserDict):
         def __getitem__(self, key):

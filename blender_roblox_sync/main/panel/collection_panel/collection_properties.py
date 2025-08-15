@@ -5,7 +5,9 @@ def register(utils, package):
 
     def poll(self, collection):
         return collection.is_editable and (collection in bpy.context.scene.collection.children_recursive)
-    bpy.types.Scene.editing_collection = bpy.props.PointerProperty(type=bpy.types.Collection, poll=poll)
+    def update_editing_collection(self, context):
+        context.view_layer.active_layer_collection = context.view_layer.layer_collection.children.get(self.editing_collection.name if self.editing_collection else "", context.view_layer.layer_collection)
+    bpy.types.Scene.editing_collection = bpy.props.PointerProperty(type=bpy.types.Collection, poll=poll, update=update_editing_collection)
 
     def get_object_collection(object):
         max_depth = 0
