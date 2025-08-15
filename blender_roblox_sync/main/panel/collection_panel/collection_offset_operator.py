@@ -1,4 +1,4 @@
-import bpy, mathutils, math, gpu
+import bpy, mathutils, math
 
 def register(utils, package):
     collection_properties = utils.import_module("collection_properties")
