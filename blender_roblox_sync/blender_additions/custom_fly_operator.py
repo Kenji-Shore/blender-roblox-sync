@@ -1,4 +1,4 @@
-import bpy, mathutils
+import bpy, mathutils, time
 
 def register(utils, package):
     FLY_DIRECTIONS = {
@@ -76,7 +76,7 @@ def register(utils, package):
                 rot_euler = rot.inverted().to_euler("ZXY")
                 self.target_rot_z = rot_euler.z
                 self.target_rot_x = rot_euler.x
-
+                
                 def draw_callback_3d(delta_time):
                     delta_x = self.mouse_delta_x
                     delta_y = self.mouse_delta_y
@@ -87,7 +87,7 @@ def register(utils, package):
                     for key in self.active_keys:
                         if key in FLY_DIRECTIONS:
                             fly_vec += FLY_DIRECTIONS[key]
-                    rot = self.region_3d.view_rotation        
+                    rot = self.region_3d.view_rotation
                     self.region_3d.view_location += (rot @ fly_vec) * 40 * (0.3 if "LEFT_SHIFT" in self.active_keys else 1) * delta_time * self.fly_speed
 
                     if "RIGHTMOUSE" in self.active_keys:
@@ -97,7 +97,7 @@ def register(utils, package):
                         self.target_rot_x = max(min(self.target_rot_x - y_delta, -0.2), -2.6)
                         target_euler = mathutils.Euler((self.target_rot_x, 0, self.target_rot_z), "ZXY")
                         target_rot = target_euler.to_quaternion().inverted().normalized()
-                        self.region_3d.view_rotation = rot.slerp(target_rot, max(min(30 * delta_time, 1), 0))
+                        self.region_3d.view_rotation = rot.slerp(target_rot, 0.3)
 
                 self.fly_handle_3d = utils.listen_draw(draw_callback_3d, is_pre_view=True)
                 self.fly_timer = context.window_manager.event_timer_add(0.01, window=context.window)

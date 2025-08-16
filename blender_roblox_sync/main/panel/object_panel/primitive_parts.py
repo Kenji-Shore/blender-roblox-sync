@@ -1,4 +1,4 @@
-import bpy, bmesh, mathutils, math
+import bpy, bmesh, mathutils, math, time
 
 def register(utils, package):
     PRIMITIVE_TYPES = {
@@ -58,16 +58,24 @@ def register(utils, package):
     ]
 
     def assign_handler(gizmo, axis, sign):
+        def push_undo():
+            bpy.ops.ed.undo_push()
         def get_value():
             return getattr(bpy.context.active_object.scale, axis)
         def set_value(new_value):
+            if bpy.app.timers.is_registered(push_undo):
+                bpy.app.timers.unregister(push_undo)
+            bpy.app.timers.register(push_undo, first_interval=0.1)
+
             primitive_object = bpy.context.active_object
             new_value = max(new_value, 0.05)
             existing_value = getattr(primitive_object.scale, axis)
             local_shift = mathutils.Vector()
             setattr(local_shift, axis, sign * (new_value - existing_value))
             setattr(primitive_object.scale, axis, new_value)
-            primitive_object.location += local_shift @ primitive_object.rotation_quaternion.to_matrix()
+
+            _, rotation, _ = primitive_object.matrix_world.decompose()
+            primitive_object.location += rotation.to_matrix() @ local_shift
         gizmo.target_set_handler("offset", get=get_value, set=set_value)
 
     class ResizePrimitive(bpy.types.GizmoGroup):
@@ -79,7 +87,7 @@ def register(utils, package):
 
         @classmethod
         def poll(cls, context):
-            return (context.active_object != None) and context.active_object.is_primitive and context.active_object.select_get()
+            return (context.active_object != None) and context.active_object.is_primitive and context.active_object.select_get() and (len(context.selected_objects) == 1)
 
         def setup(self, context):
             self.arrows = {}
@@ -93,8 +101,8 @@ def register(utils, package):
                 info["gizmo"] = gizmo
 
         def refresh(self, context):
-            primitive_object = context.active_object
-            location, rotation, scale = primitive_object.matrix_world.decompose()
+            primitive_object = bpy.context.active_object
+            location, rotation, _ = primitive_object.matrix_world.decompose()
             for info in AXES:
                 info["gizmo"].matrix_basis = mathutils.Matrix.LocRotScale(location, rotation @ info["orientation"].to_quaternion(), None)
 

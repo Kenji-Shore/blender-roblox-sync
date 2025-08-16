@@ -30,6 +30,7 @@ def register(utils, package):
             "value": get_color,
         }),),
         interfaces={"color": ("flat", "VEC4")},
+        offset_depth=True,
     )
 
     invisible_objects = utils.id_dict()
@@ -62,10 +63,8 @@ def register(utils, package):
     bpy.types.Object.invisible_color = bpy.props.EnumProperty(items=[(key, key, "") for key in COLORS.keys()], default="Red")
 
     def object_visibility_change(object, is_visible, object_exists):
-        if is_visible:
+        if object_exists:
             update_is_invisible(object, bpy.context)
-        else:
-            destroy_invisible_object(object)
     def draw(layout, context, currently_selected):
         if currently_selected:
             layout.prop(currently_selected, "is_invisible", text="Is Invisible")

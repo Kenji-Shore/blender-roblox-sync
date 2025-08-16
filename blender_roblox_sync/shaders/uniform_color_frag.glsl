@@ -9,5 +9,8 @@ float4 blender_srgb_to_framebuffer_space(float4 in_color)
 
 void main()
 {
+	#ifdef OFFSET_DEPTH
+	gl_FragDepth = gl_FragCoord.z - 0.00001f;
+	#endif
 	fragColor = blender_srgb_to_framebuffer_space(color);
 }

@@ -24,7 +24,6 @@ def register(utils, package):
     }
 
     VISIBLE_SETTINGS = {
-        "show_in_front": False,
         "visible_shadow": True,
         "visible_volume_scatter": True,
         "visible_transmission": True,
@@ -377,12 +376,8 @@ def register(utils, package):
                             if instance.object == object.original:
                                 tied_instance = instance
                                 break
-                        if is_visible:
-                            if not tied_instance:
-                                CustomObjectInstance(custom_object, object=object)
-                        else:
-                            if tied_instance:
-                                tied_instance.destroy()
+                        if not tied_instance:
+                            CustomObjectInstance(custom_object, object=object)
 
     global CustomObject
     class CustomObject:
@@ -563,7 +558,7 @@ def register(utils, package):
                 uniform_value = uniform_value(object_or_instance, states, geometry_type)
             return uniform_value
         
-        def __prep_instance_uniforms(self, states, geometry_type):
+        def __prep_instance_uniforms(self, states, geometry_type, instances):
             if len(self.__instance_uniforms) > 0:
                 buf = b""
                 def pad_buf(offset, alignment):
@@ -574,21 +569,20 @@ def register(utils, package):
                         buf += struct.pack(f"{pad_amount}x")
                     return rounded_offset
 
-                for instance in self.instances:
-                    if instance.visible:
-                        offset = 0
-                        for uniform in self.__instance_uniforms:
-                            offset = pad_buf(offset, uniform["alignment"])
-                            encoded = uniform["encode"](self.__get_uniform_value(uniform, instance, states, geometry_type))
-                            buf += encoded
-                            offset += len(encoded)
-                        offset = pad_buf(offset, GLSL_ARRAY_STRUCT_ALIGNMENT)
+                for instance in instances:
+                    offset = 0
+                    for uniform in self.__instance_uniforms:
+                        offset = pad_buf(offset, uniform["alignment"])
+                        encoded = uniform["encode"](self.__get_uniform_value(uniform, instance, states, geometry_type))
+                        buf += encoded
+                        offset += len(encoded)
+                    offset = pad_buf(offset, GLSL_ARRAY_STRUCT_ALIGNMENT)
 
                 self.__instance_buf = gpu.types.GPUUniformBuf(buf) #this python data must stay in memory until batch gets drawn
                 self.__shader.uniform_block("instance_uniforms", self.__instance_buf)
 
-        def __prep_render(self, states, geometry_type):
-            self.__prep_instance_uniforms(states, geometry_type)
+        def __prep_render(self, states, geometry_type, instances):
+            self.__prep_instance_uniforms(states, geometry_type, instances)
             for uniform in self.__non_instance_uniforms:
                 getattr(self.__shader, uniform["set"])(uniform["name"], self.__get_uniform_value(uniform, self, states, geometry_type))
 
@@ -599,26 +593,29 @@ def register(utils, package):
                 else:
                     self.__shader.uniform_sampler("image", self.__texture)
             
-        def render(self, states):
+        def render(self, states, visible_objects):
             if (self.tied_to_object and (not utils.id_exists(self.tied_to_object))) or (self.tied_to_object_material and (not utils.id_exists(self.tied_to_object_material))):
                 self.destroy()
                 return
+            if (self.tied_to_object and not (self.tied_to_object in visible_objects)):
+                return
             
-            instance_count = 0
+            instances = []
             for instance in self.instances.copy():
                 if instance.object and (not utils.id_exists(instance.object)):
                     instance.destroy()
-                elif instance.visible:
-                    instance_count += 1
+                elif instance.visible and not (instance.object and not (instance.object in visible_objects)):
+                    instances.append(instance)
 
             if self.tied_to_object_material:
                 self.alpha = self.tied_to_object_material.alpha
+            instance_count = len(instances)
             if instance_count > 0:
                 for geometry_type, batch in self.__batches.items():
                     gpu_states = self.__gpu_states
                     if gpu_states and (geometry_type in gpu_states):
                         gpu_states = gpu_states[geometry_type]
-                    self.__prep_render(states, geometry_type)
+                    self.__prep_render(states, geometry_type, instances)
                     if self.tied_to_object_material and self.tied_to_object.mode == "EDIT":
                         gpu_states = gpu_states.copy() if gpu_states != None else {}
                         gpu_states["blend_set"] = "ADDITIVE"
@@ -649,7 +646,8 @@ def register(utils, package):
         gamma = color_managed_view_settings.gamma
         states["scale"] = 1 if exposure == 0 else pow(2, exposure)
         states["exponent"] = 1 if gamma == 1 else 1 / max(1.192092896e-07, gamma)
-
+        
+        visible_objects = bpy.context.visible_objects
         with utils.gpu_state({
             "blend_set": "ALPHA",
             "face_culling_set": "BACK",
@@ -657,7 +655,7 @@ def register(utils, package):
         }):
             custom_objects.sort(key = lambda custom_object: custom_object.draw_order)
             for custom_object in custom_objects.copy():
-                custom_object.render(states)
+                custom_object.render(states, visible_objects)
 
     def depsgraph_update(depsgraph):
         nonlocal latest_depsgraph
