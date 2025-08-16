@@ -186,9 +186,10 @@ def register(utils, package):
         if sculpt_object_name and bpy.data.objects.get(sculpt_object_name):
             exit_vertex_paint(None, "OBJECT")
     def add_vertex_colors(depsgraph):
-        for object in bpy.context.selected_editable_objects:
-            if object.type == "MESH":
-                add_vertex_color(object.data)
+        if hasattr(bpy.context, "selected_editable_objects"):
+            for object in bpy.context.selected_editable_objects:
+                if object.type == "MESH":
+                    add_vertex_color(object.data)
 
     class VIEW3D_PT_sculpt_dyntopo(bl_ui.space_view3d_toolbar.VIEW3D_PT_sculpt_dyntopo): #overwrite original panel
         @classmethod

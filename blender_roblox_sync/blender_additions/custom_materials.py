@@ -349,11 +349,12 @@ def register(utils, package):
 
             for material in (existing_materials - new_materials):
                 update_scroll_material_objects(material, object, True)
-                assignee_objects = materials_assignee_objects[material]
-                assignee_objects.remove(object)
+                if material in materials_assignee_objects:
+                    assignee_objects = materials_assignee_objects[material]
+                    assignee_objects.remove(object)
+                    if len(assignee_objects) == 0:
+                        del materials_assignee_objects[material]
                 assigned_materials.remove(material)
-                if len(assignee_objects) == 0:
-                    del materials_assignee_objects[material]
 
         if is_visible:
             if assigned_materials == None:

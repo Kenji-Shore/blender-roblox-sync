@@ -261,7 +261,7 @@ class Utils:
             return False
     
     def object_visible(self, object):
-        return object.original in bpy.context.visible_objects
+        return hasattr(bpy.context, "visible_objects") and (object.original in bpy.context.visible_objects)
     
     class IDDict(collections.UserDict):
         def __getitem__(self, key):
@@ -377,7 +377,7 @@ class Utils:
         def deferred_mode_updates():
             nonlocal existing_objects
             nonlocal last_mode
-            
+
             if post_registration_finished:
                 all_objects = set(bpy.data.objects.values())
                 new_objects = set(bpy.context.visible_objects)
@@ -389,7 +389,6 @@ class Utils:
                     object_exists = object in all_objects
                     if object_exists:
                         object = object.evaluated_get(depsgraph)
-                        # object.matrix_world = object.evaluated_get(depsgraph).matrix_world
                     for callback in self.__listen_object_visibility_changes.values():
                         callback(object, is_visible, object_exists)
 

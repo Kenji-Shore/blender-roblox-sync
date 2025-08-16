@@ -286,7 +286,6 @@ def register(utils, package):
             DEFAULT_SHADERS[default_shader_config] = shader
         return shader
     
-    latest_depsgraph = None
     custom_objects = []
     class CustomObjectInstance:
         def __init__(self, custom_object, matrix=None, object=None):
@@ -331,8 +330,7 @@ def register(utils, package):
         @property
         def matrix(self):
             if self.object:
-                evaluated_object = self.object.evaluated_get(latest_depsgraph) if latest_depsgraph else self.object
-                value = evaluated_object.matrix_world
+                value = bpy.context.view_layer.depsgraph.id_eval_get(self.object).matrix_world
                 tied_matrix_get = self.custom_object.tied_matrix_get
                 if tied_matrix_get:
                     value = tied_matrix_get(value)
@@ -658,8 +656,6 @@ def register(utils, package):
                 custom_object.render(states, visible_objects)
 
     def depsgraph_update(depsgraph):
-        nonlocal latest_depsgraph
-        latest_depsgraph = depsgraph
         for depsgraph_update in depsgraph.updates:
             id = depsgraph_update.id.original
             if (type(id) is bpy.types.Object) and depsgraph_update.is_updated_geometry:
@@ -669,16 +665,12 @@ def register(utils, package):
      
     def post_registration():
         bpy.types.Object.visible_settings = bpy.props.PointerProperty(type=VisibleSettings)
-    def load_post(file):
-        nonlocal latest_depsgraph
-        latest_depsgraph = bpy.context.evaluated_depsgraph_get()
     return {
         "classes": (VisibleSettings,),
         "listeners": (
             utils.listen_draw(draw_callback_3d, priority=-1),
             utils.listen_depsgraph_update(depsgraph_update),
             utils.listen_object_visibility_change(object_visibility_change),
-            utils.listen_handler("load_post", load_post),
         ),
         "post_registration": post_registration,
     }
